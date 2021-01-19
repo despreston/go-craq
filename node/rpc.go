@@ -26,5 +26,16 @@ func (nRPC *RPC) AddNeighbor(
 	args *craqrpc.AddNeighborArgs,
 	_ *craqrpc.AddNeighborResponse,
 ) error {
+	nRPC.n.mu.Lock()
+
+	if nRPC.n.head && args.Pos == craqrpc.NeighborPosPrev {
+		// Neighbor is predecessor so this node can't be head.
+		nRPC.n.head = false
+	} else if nRPC.n.tail && args.Pos == craqrpc.NeighborPosNext {
+		// Neighbor is successor so this node can't be tail.
+		nRPC.n.tail = false
+	}
+
+	nRPC.n.mu.Unlock()
 	return nRPC.n.connectToNode(args.Path, args.Pos)
 }

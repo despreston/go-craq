@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/rpc"
+	"sync"
 
 	"github.com/despreston/go-craq/craqrpc"
 	"github.com/despreston/go-craq/kv"
@@ -25,6 +26,7 @@ type Node struct {
 	CdrPath string      // host + port to coordinator
 	cdr     *rpc.Client // coordinator rpc client
 	Path    string      // host + port for rpc communication
+	mu      sync.Mutex
 }
 
 // ListenAndServe starts listening for messages and connects to the coordinator.
@@ -81,13 +83,13 @@ func (n *Node) ConnectToCoordinator() error {
 	if reply.Prev != "" {
 		// If the neighbor is unreachable, swallow the error so this node doesn't
 		// also fail.
-		n.connectToNode(reply.Prev, craqrpc.NeighborPosPrev)
-
-		announceToNeighbor(
-			n.neighbors[craqrpc.NeighborPosPrev],
-			n.Path,
-			craqrpc.NeighborPosNext,
-		)
+		if err := n.connectToNode(reply.Prev, craqrpc.NeighborPosPrev); err == nil {
+			announceToNeighbor(
+				n.neighbors[craqrpc.NeighborPosPrev],
+				n.Path,
+				craqrpc.NeighborPosNext,
+			)
+		}
 	} else if n.neighbors[craqrpc.NeighborPosPrev] != nil {
 		// Close the connection to the previous predecessor.
 		n.neighbors[craqrpc.NeighborPosPrev].Close()
@@ -106,6 +108,9 @@ func announceToNeighbor(
 }
 
 func (n *Node) connectToNode(path string, pos craqrpc.NeighborPos) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
 	client, err := rpc.DialHTTP("tcp", path)
 	if err != nil {
 		return err
