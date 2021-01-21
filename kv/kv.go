@@ -4,6 +4,7 @@ package kv
 
 import (
 	"fmt"
+	"sync"
 )
 
 // Item is a meta data and value for an object in the Store. A key inside the
@@ -17,6 +18,7 @@ type Item struct {
 // Store is an in-memory key/value storage.
 type Store struct {
 	items map[string][]*Item
+	mu    sync.Mutex
 }
 
 // Read returns the latest clean version of an item. If there's a dirty version
@@ -24,6 +26,9 @@ type Store struct {
 // should be requested from the tail of the chain. If the item is in the clean
 // state, (*Item, true) is returned.
 func (s *Store) Read(key string) (*Item, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	items, has := s.items[key]
 
 	if !has {
@@ -43,6 +48,9 @@ func (s *Store) Read(key string) (*Item, bool) {
 // Adds a new item to the store. If items already exist for this key, the
 // version for the item is set using the latest version of that key.
 func (s *Store) Write(key string, val interface{}) *Item {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	item := Item{
 		dirty: true,
 		val:   val,
@@ -65,6 +73,9 @@ func (s *Store) Write(key string, val interface{}) *Item {
 // MarkClean sets the dirty flag to false and purges any old versions of the
 // item for the given key.
 func (s *Store) MarkClean(key string, version uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	items, has := s.items[key]
 	if !has {
 		return fmt.Errorf("no item for key %s so can't mark clean", key)
