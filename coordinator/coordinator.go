@@ -1,12 +1,11 @@
-// coordinator package is manages the state of the chain. The Coordinator is
+// coordinator package manages the state of the chain. The Coordinator is
 // responsible for detecting and handling node failures, electing head and tail
-// nodes, adding new nodes to the chain. The Coordinator runs as a single
-// process but could be replaced by a more resilient consensus service like
-// Paxos or Raft.
+// nodes, and adding new nodes to the chain.
 //
-// If the Coordinator process fails but the chain is still intact, reads and
-// writes are still possible. If the Coordinator fails and the head or tail
-// nodes fail, reads made up to the time of failure should still be available.
+// If the Coordinator process fails but the chain is still intact, reads would
+// still be possible. Writes will not be possible because all writes are first
+// sent to the Coordinator. The coordinator forwards write requests to the head
+// node.
 
 package coordinator
 
