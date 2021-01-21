@@ -20,7 +20,7 @@ type RPC struct {
 // announcing itself to the previous Node in the chain.
 func (cRPC *RPC) AddNode(
 	args *craqrpc.AddNodeArgs,
-	reply *craqrpc.ShuffleResponse,
+	reply *craqrpc.AddNodeResponse,
 ) error {
 	log.Printf("received AddNode from %s\n", args.Path)
 

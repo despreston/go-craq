@@ -17,11 +17,24 @@ type AddNodeArgs struct {
 	Path string // address for rpc.Client connection
 }
 
-// ShuffleResponse is an RPC response meant to be sent to a node when the chain
-// is shuffled.
-type ShuffleResponse struct {
+// AddNodeResponse lets the Coordinator respond to the AddNode message with some
+// metadata for the node to place itself into the correct position.
+type AddNodeResponse struct {
 	Head, Tail bool
-	Prev       string // path to previous node in the chain
+	Prev, Next string // path to neighbors
+}
+
+// UpdateNodeArgs are the arguments for the RPC command for updating a node's
+// metadata.
+type UpdateNodeArgs struct {
+	Head, Tail bool
+	Prev, Next string
+}
+
+// UpdateNodeResponse is an RPC response that includes info for a node to position
+// themselves properly in the chain.
+type UpdateNodeResponse struct {
+	Ok bool
 }
 
 // PingResponse is the reply for Ping RPC command.
@@ -32,10 +45,11 @@ type PingResponse struct {
 // PingArgs are arguments for Ping RPC command.
 type PingArgs struct{}
 
-// AddNeighborArgs are arguments for the AddNeighbor RPC command.
-type AddNeighborArgs struct {
+// ChangeNeighborArgs are arguments for the ChangeNeighbor RPC command.
+type ChangeNeighborArgs struct {
 	Pos  NeighborPos // Position of neighbor relative to the node receiving msg
 	Path string      // Host + port of neighbor
 }
 
-type AddNeighborResponse struct{}
+// ChangeNeighborResponse ...
+type ChangeNeighborResponse struct{}
