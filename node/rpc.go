@@ -78,3 +78,104 @@ func (nRPC *RPC) ChangeNeighbor(
 
 	return nRPC.n.connectToNode(args.Path, args.Pos)
 }
+
+// ClientWrite adds a new object to the chain and starts the process of
+// replication.
+func (nRPC *RPC) ClientWrite(
+	args *craqrpc.ClientWriteArgs,
+	reply *craqrpc.ClientWriteResponse,
+) error {
+	version := uint64(1)
+
+	// Increment version based off any existing objects for this key.
+	existing, has := nRPC.n.store.Read(args.Key)
+	if has {
+		version = (*existing).Version() + 1
+	}
+
+	if err := nRPC.n.store.Write(args.Key, args.Value, version); err != nil {
+		log.Printf("Failed to create during ClientWrite. %v\n", err)
+		return err
+	}
+
+	log.Printf("Created version %d of key %s\n", version, args.Key)
+
+	// Forward the new object to the successor node.
+
+	next := nRPC.n.neighbors[craqrpc.NeighborPosNext]
+
+	writeArgs := craqrpc.WriteArgs{
+		Key:     args.Key,
+		Value:   args.Value,
+		Version: version,
+	}
+
+	err := next.client.Call("RPC.Write", &writeArgs, &craqrpc.WriteResponse{})
+	if err != nil {
+		log.Printf("Failed to send to successor during ClientWrite. %v\n", err)
+		return err
+	}
+
+	reply.Ok = true
+	return nil
+}
+
+// Write adds an object to the chain. If the node is not the tail, the Write is
+// forwarded to the next node in the chain. If the node is tail, the object is
+// marked clean and a MarkClean message is sent to the predecessor in the chain.
+func (nRPC *RPC) Write(
+	args *craqrpc.WriteArgs,
+	reply *craqrpc.WriteResponse,
+) error {
+	if err := nRPC.n.store.Write(args.Key, args.Value, args.Version); err != nil {
+		log.Printf("Failed to write. %v\n", err)
+		return err
+	}
+
+	if !nRPC.n.tail {
+		// Forward to successor
+		next := nRPC.n.neighbors[craqrpc.NeighborPosNext]
+
+		err := next.client.Call("RPC.Write", &args, &craqrpc.WriteResponse{})
+		if err != nil {
+			log.Printf("Failed to send to successor during Write. %v\n", err)
+			return err
+		}
+
+		reply.Ok = true
+		return nil
+	}
+
+	if err := nRPC.n.store.MarkClean(args.Key, args.Version); err != nil {
+		log.Printf("Failed to mark as clean in Write. %v\n", err)
+		return err
+	}
+
+	// Start telling predecessors to mark this version clean.
+
+	prev := nRPC.n.neighbors[craqrpc.NeighborPosPrev]
+	mcArgs := craqrpc.MarkCleanArgs{Key: args.Key, Version: args.Version}
+
+	err := prev.client.Call(
+		"RPC.MarkClean",
+		&mcArgs,
+		&craqrpc.MarkCleanResponse{},
+	)
+
+	if err != nil {
+		log.Printf("Failed to send MarkClean to predecessor in Write. %v\n", err)
+		return err
+	}
+
+	reply.Ok = true
+	return nil
+}
+
+// MarkClean will mark an object clean in storage.
+func (nRPC *RPC) MarkClean(
+	args *craqrpc.MarkCleanArgs,
+	reply *craqrpc.MarkCleanResponse,
+) error {
+	log.Printf("marking clean k: %s, v: %v\n", args.Key, args.Version)
+	return nil
+}

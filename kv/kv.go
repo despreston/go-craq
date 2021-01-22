@@ -12,8 +12,12 @@ import (
 type Item struct {
 	version uint64
 	dirty   bool
-	val     interface{}
+	val     []byte
 }
+
+func (i *Item) Version() uint64 { return i.version }
+func (i *Item) Dirty() bool     { return i.dirty }
+func (i *Item) Val() []byte     { return i.val }
 
 // Store is an in-memory key/value storage.
 type Store struct {
@@ -38,35 +42,45 @@ func (s *Store) Read(key string) (*Item, bool) {
 	// If the object has multiple versions, it can be implicitly determined that
 	// the item's state is dirty, because the Item's history is purged when a
 	// version is marked clean.
-	if len(items) > 1 {
-		return nil, false
-	}
+	// if len(items) > 1 {
+	// 	return nil, false
+	// }
 
 	return items[0], true
 }
 
-// Adds a new item to the store. If items already exist for this key, the
-// version for the item is set using the latest version of that key.
-func (s *Store) Write(key string, val interface{}) *Item {
+// ReadVersion finds an item for the given key with the matching version. If no
+// item is found for that version of key, (nil, false) is returned.
+func (s *Store) ReadVersion(key string, version uint64) (*Item, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	items, has := s.items[key]
+	if !has {
+		return nil, false
+	}
+
+	for _, item := range items {
+		if item.version == version {
+			return item, true
+		}
+	}
+
+	return nil, false
+}
+
+// Adds a new item to the store.
+func (s *Store) Write(key string, val []byte, version uint64) *Item {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	item := Item{
-		dirty: true,
-		val:   val,
+		dirty:   true,
+		val:     val,
+		version: version,
 	}
 
-	items, has := s.items[key]
-
-	// new key
-	if !has {
-		item.version = 1
-		s.items[key] = []*Item{&item}
-		return &item
-	}
-
-	item.version = items[0].version + 1
-	items = append(items, &item)
+	s.items[key] = append(s.items[key], &item)
 	return &item
 }
 
@@ -82,7 +96,8 @@ func (s *Store) MarkClean(key string, version uint64) error {
 	}
 
 	// Update the dirty flag and find index in items where version is older than
-	// item.version.
+	// item.version. If this version is the oldest for this key, the index will be
+	// -1.
 	var older int
 	for i, itm := range items {
 		if itm.version == version {

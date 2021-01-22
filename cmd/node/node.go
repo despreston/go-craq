@@ -12,10 +12,11 @@ func main() {
 	flag.StringVar(&port, "port", "1235", "port")
 	flag.Parse()
 
-	n := node.Node{
+	opts := node.Opts{
 		Path:    "127.0.0.1:" + port,
 		CdrPath: "127.0.0.1:1234",
+		Store:   nil,
 	}
 
-	log.Fatal(n.ListenAndServe())
+	log.Fatal(node.New(opts).ListenAndServe())
 }

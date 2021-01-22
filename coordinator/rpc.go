@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"errors"
 	"log"
 	"net/rpc"
 	"time"
@@ -45,6 +46,27 @@ func (cRPC *RPC) AddNode(
 		reply.Head = true
 	} else {
 		reply.Prev = cRPC.c.replicas[len(cRPC.c.replicas)-2].Path
+	}
+
+	return nil
+}
+
+// Write should be called by clients to write a new object to the chain.
+func (cRPC *RPC) Write(
+	args *craqrpc.ClientWriteArgs,
+	reply *craqrpc.ClientWriteResponse,
+) error {
+	if len(cRPC.c.replicas) < 1 {
+		reply.Ok = false
+		return errors.New("no nodes in the chain")
+	}
+
+	// Forward the write to the head
+	head := cRPC.c.replicas[0]
+	err := head.RPC.Call("RPC.ClientWrite", &args, &reply)
+	if err != nil || !reply.Ok {
+		reply.Ok = false
+		return err
 	}
 
 	return nil

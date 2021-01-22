@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/despreston/go-craq/craqrpc"
-	"github.com/despreston/go-craq/kv"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -19,23 +18,48 @@ type neighbor struct {
 	path   string
 }
 
+type object interface {
+	Version() uint64
+	Dirty() bool
+	Val() []byte
+}
+
+type storer interface {
+	Read(string) (*object, bool)
+	Write(string, []byte, uint64) error
+	MarkClean(string, uint64) error
+}
+
+type Opts struct {
+	Store   storer
+	Path    string
+	CdrPath string
+}
+
 // Node is what the white paper refers to as a node. This is the client that is
 // responsible for storing data and handling reads/writes.
 type Node struct {
 	neighbors map[craqrpc.NeighborPos]neighbor
 	head      bool        // is head
 	tail      bool        // is tail
-	store     *kv.Store   // storage layer
+	store     storer      // storage layer
 	CdrPath   string      // host + port to coordinator
 	cdr       *rpc.Client // coordinator rpc client
 	Path      string      // host + port for rpc communication
 	mu        sync.Mutex
 }
 
+func New(opts Opts) *Node {
+	return &Node{
+		neighbors: make(map[craqrpc.NeighborPos]neighbor, 2),
+		CdrPath:   opts.CdrPath,
+		Path:      opts.Path,
+		store:     opts.Store,
+	}
+}
+
 // ListenAndServe starts listening for messages and connects to the coordinator.
 func (n *Node) ListenAndServe() error {
-	n.neighbors = make(map[craqrpc.NeighborPos]neighbor, 2)
-
 	nRPC := &RPC{n}
 	rpc.Register(nRPC)
 	rpc.HandleHTTP()

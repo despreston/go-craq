@@ -53,3 +53,41 @@ type ChangeNeighborArgs struct {
 
 // ChangeNeighborResponse ...
 type ChangeNeighborResponse struct{}
+
+// ClientWriteArgs are arguments a client should send to the Coordinator in
+// order to initiate a new write. The Coordinator will forward the
+// ClientWriteArgs to the head node.
+type ClientWriteArgs struct {
+	Key   string
+	Value []byte
+}
+
+// ClientWriteResponse is the response from the coordinator after a request for
+// a new write from a client.
+type ClientWriteResponse struct {
+	Ok bool
+}
+
+// WriteArgs are arguments used when one node wants to tell it's successor to
+// write a new object to storage.
+type WriteArgs struct {
+	Key     string
+	Value   []byte
+	Version uint64
+}
+
+// WriteResponse ...
+type WriteResponse struct {
+	Ok bool
+}
+
+// MarkCleanArgs should be sent to a node to tell it to mark an object as clean.
+type MarkCleanArgs struct {
+	Key     string
+	Version uint64
+}
+
+// MarkCleanResponse ...
+type MarkCleanResponse struct {
+	Ok bool
+}
