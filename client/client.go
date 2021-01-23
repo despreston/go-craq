@@ -10,26 +10,22 @@ import (
 )
 
 type Client struct {
-	coordinator, port string
-	cRPC              *rpc.Client // coordinator
-	nRPC              *rpc.Client // node
+	cRPC, nRPC *rpc.Client // connections to coordinator and a node
 }
 
-func New(cdr, node, port string) (*Client, error) {
+func New(cdr, node string) (*Client, error) {
 	c := &Client{}
 
-	cRPC, err := rpc.DialHTTP("tcp", "127.0.0.1:"+cdr)
+	cRPC, err := rpc.DialHTTP("tcp", cdr)
 	if err != nil {
 		return c, err
 	}
 
-	nRPC, err := rpc.DialHTTP("tcp", "127.0.0.1:"+node)
+	nRPC, err := rpc.DialHTTP("tcp", node)
 	if err != nil {
 		return c, err
 	}
 
-	c.coordinator = cdr
-	c.port = port
 	c.cRPC = cRPC
 	c.nRPC = nRPC
 	return c, nil

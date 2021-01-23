@@ -10,11 +10,10 @@ import (
 )
 
 func main() {
-	var cdrPort, nodePort, port string
+	var cdr, node string
 
-	flag.StringVar(&cdrPort, "c", "1234", "coordinator port")
-	flag.StringVar(&port, "p", "3000", "port")
-	flag.StringVar(&nodePort, "n", "1235", "port")
+	flag.StringVar(&cdr, "c", "localhost:1234", "coordinator address")
+	flag.StringVar(&node, "n", "localhost:1235", "node address to read from")
 	flag.Parse()
 
 	if len(os.Args) < 2 {
@@ -27,9 +26,9 @@ func main() {
 
 	cmd := os.Args[1]
 
-	fmt.Printf("cmd: %s, port: %s, coordinator: %s\n", cmd, port, cdrPort)
+	fmt.Printf("cmd: %s, coordinator: %s\n", cmd, cdr)
 
-	c, err := client.New(cdrPort, nodePort, port)
+	c, err := client.New(cdr, node)
 	if err != nil {
 		log.Fatal(err)
 	}
