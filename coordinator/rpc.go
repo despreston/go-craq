@@ -54,7 +54,7 @@ func (cRPC *RPC) AddNode(
 // Write should be called by clients to write a new object to the chain.
 func (cRPC *RPC) Write(
 	args *craqrpc.ClientWriteArgs,
-	reply *craqrpc.ClientWriteResponse,
+	reply *craqrpc.AckResponse,
 ) error {
 	if len(cRPC.c.replicas) < 1 {
 		reply.Ok = false

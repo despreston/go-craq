@@ -12,6 +12,11 @@ const (
 	NeighborPosNext
 )
 
+// AckResponse is used to respond to RPC commands with a simple flag.
+type AckResponse struct {
+	Ok bool
+}
+
 // AddNodeArgs are arguments for the AddNode RPC comamnd.
 type AddNodeArgs struct {
 	Path string // address for rpc.Client connection
@@ -29,17 +34,6 @@ type AddNodeResponse struct {
 type UpdateNodeArgs struct {
 	Head, Tail bool
 	Prev, Next string
-}
-
-// UpdateNodeResponse is an RPC response that includes info for a node to position
-// themselves properly in the chain.
-type UpdateNodeResponse struct {
-	Ok bool
-}
-
-// PingResponse is the reply for Ping RPC command.
-type PingResponse struct {
-	Ok bool
 }
 
 // PingArgs are arguments for Ping RPC command.
@@ -62,12 +56,6 @@ type ClientWriteArgs struct {
 	Value []byte
 }
 
-// ClientWriteResponse is the response from the coordinator after a request for
-// a new write from a client.
-type ClientWriteResponse struct {
-	Ok bool
-}
-
 // WriteArgs are arguments used when one node wants to tell it's successor to
 // write a new object to storage.
 type WriteArgs struct {
@@ -76,18 +64,8 @@ type WriteArgs struct {
 	Version uint64
 }
 
-// WriteResponse ...
-type WriteResponse struct {
-	Ok bool
-}
-
 // MarkCleanArgs should be sent to a node to tell it to mark an object as clean.
 type MarkCleanArgs struct {
 	Key     string
 	Version uint64
-}
-
-// MarkCleanResponse ...
-type MarkCleanResponse struct {
-	Ok bool
 }

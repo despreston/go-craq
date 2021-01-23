@@ -61,7 +61,7 @@ func (cdr *Coordinator) pingReplicas() {
 			go func(n *node, i int) {
 				log.Printf("pinging replica %d\n", i)
 
-				var reply craqrpc.PingResponse
+				var reply craqrpc.AckResponse
 				pingCh := n.RPC.Go("RPC.Ping", &craqrpc.PingArgs{}, &reply, nil)
 
 				select {
@@ -133,7 +133,7 @@ func (cdr *Coordinator) updateNode(i int) error {
 
 	log.Printf("Sending metadata to %s.\n", n.Path)
 
-	var reply craqrpc.UpdateNodeResponse
+	var reply craqrpc.AckResponse
 	var args craqrpc.UpdateNodeArgs
 
 	args.Head = i == 0

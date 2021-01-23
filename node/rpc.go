@@ -15,7 +15,7 @@ type RPC struct {
 
 // Ping responds to ping messages. The coordinator should call this method via
 // rpc to ensure the node is still functioning.
-func (nRPC *RPC) Ping(_ *craqrpc.PingArgs, r *craqrpc.PingResponse) error {
+func (nRPC *RPC) Ping(_ *craqrpc.PingArgs, r *craqrpc.AckResponse) error {
 	log.Println("Replying to ping.")
 	r.Ok = true
 	return nil
@@ -27,7 +27,7 @@ func (nRPC *RPC) Ping(_ *craqrpc.PingArgs, r *craqrpc.PingResponse) error {
 // is a failure or re-organization of the chain.
 func (nRPC *RPC) Update(
 	args *craqrpc.UpdateNodeArgs,
-	_ *craqrpc.UpdateNodeResponse,
+	_ *craqrpc.AckResponse,
 ) error {
 	log.Printf("Received metadata update: %+v\n", args)
 
@@ -83,7 +83,7 @@ func (nRPC *RPC) ChangeNeighbor(
 // replication.
 func (nRPC *RPC) ClientWrite(
 	args *craqrpc.ClientWriteArgs,
-	reply *craqrpc.ClientWriteResponse,
+	reply *craqrpc.AckResponse,
 ) error {
 	version := uint64(1)
 
@@ -110,7 +110,7 @@ func (nRPC *RPC) ClientWrite(
 		Version: version,
 	}
 
-	err := next.client.Call("RPC.Write", &writeArgs, &craqrpc.WriteResponse{})
+	err := next.client.Call("RPC.Write", &writeArgs, &craqrpc.AckResponse{})
 	if err != nil {
 		log.Printf("Failed to send to successor during ClientWrite. %v\n", err)
 		return err
@@ -125,7 +125,7 @@ func (nRPC *RPC) ClientWrite(
 // marked clean and a MarkClean message is sent to the predecessor in the chain.
 func (nRPC *RPC) Write(
 	args *craqrpc.WriteArgs,
-	reply *craqrpc.WriteResponse,
+	reply *craqrpc.AckResponse,
 ) error {
 	if err := nRPC.n.store.Write(args.Key, args.Value, args.Version); err != nil {
 		log.Printf("Failed to write. %v\n", err)
@@ -136,7 +136,7 @@ func (nRPC *RPC) Write(
 		// Forward to successor
 		next := nRPC.n.neighbors[craqrpc.NeighborPosNext]
 
-		err := next.client.Call("RPC.Write", &args, &craqrpc.WriteResponse{})
+		err := next.client.Call("RPC.Write", &args, &craqrpc.AckResponse{})
 		if err != nil {
 			log.Printf("Failed to send to successor during Write. %v\n", err)
 			return err
@@ -159,7 +159,7 @@ func (nRPC *RPC) Write(
 	err := prev.client.Call(
 		"RPC.MarkClean",
 		&mcArgs,
-		&craqrpc.MarkCleanResponse{},
+		&craqrpc.AckResponse{},
 	)
 
 	if err != nil {
@@ -174,7 +174,7 @@ func (nRPC *RPC) Write(
 // MarkClean will mark an object clean in storage.
 func (nRPC *RPC) MarkClean(
 	args *craqrpc.MarkCleanArgs,
-	reply *craqrpc.MarkCleanResponse,
+	reply *craqrpc.AckResponse,
 ) error {
 	log.Printf("marking clean k: %s, v: %v\n", args.Key, args.Version)
 	return nil
