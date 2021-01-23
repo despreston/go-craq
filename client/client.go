@@ -1,4 +1,4 @@
-// client package is a CLI tool for sending messages to a CRAQ chain.
+// client package is a control plane for a CRAQ chain.
 
 package client
 
