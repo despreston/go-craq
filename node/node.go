@@ -4,6 +4,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"net/rpc"
@@ -13,23 +14,36 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var (
+	// ErrNotFound should be returned by storage during a read operation if no
+	// item exists for the given key.
+	ErrNotFound = errors.New("that key does not exist")
+
+	// ErrDirtyItem should be returned by storage if the latest version for the
+	// key has not been committed yet.
+	ErrDirtyItem = errors.New("key has an uncommitted version")
+)
+
 type neighbor struct {
 	client *rpc.Client
 	path   string
 }
 
-type object interface {
-	Version() uint64
-	Dirty() bool
-	Val() []byte
+// Item is a meta data and value for an object in the Store. A key inside the
+// store might have multiple versions of the same Item.
+type Item struct {
+	Version   uint64
+	Committed bool
+	Value     []byte
 }
 
 type storer interface {
-	Read(string) (*object, bool)
+	Read(string) (*Item, error)
 	Write(string, []byte, uint64) error
-	MarkClean(string, uint64) error
+	Commit(string, uint64) error
 }
 
+// Opts is for passing options to the Node constructor.
 type Opts struct {
 	Store   storer
 	Path    string
@@ -39,14 +53,14 @@ type Opts struct {
 // Node is what the white paper refers to as a node. This is the client that is
 // responsible for storing data and handling reads/writes.
 type Node struct {
-	neighbors map[craqrpc.NeighborPos]neighbor
-	head      bool        // is head
-	tail      bool        // is tail
-	store     storer      // storage layer
-	CdrPath   string      // host + port to coordinator
-	cdr       *rpc.Client // coordinator rpc client
-	Path      string      // host + port for rpc communication
-	mu        sync.Mutex
+	neighbors      map[craqrpc.NeighborPos]neighbor
+	isHead, isTail bool
+	tail           string      // path to the tail node
+	store          storer      // storage layer
+	CdrPath        string      // host + port to coordinator
+	cdr            *rpc.Client // coordinator rpc client
+	Path           string      // host + port for rpc communication
+	mu             sync.Mutex
 }
 
 func New(opts Opts) *Node {
@@ -84,8 +98,8 @@ func (n *Node) ListenAndServe() error {
 // ConnectToCoordinator let's the Node announce itself to the chain coordinator
 // to be added to the chain. The coordinator responds with a message to tell the
 // Node if it's the head or tail, and with the path of the previous node in the
-// chain. The Node announces itself to the neighbor using the path given by the
-// coordinator.
+// chain and the path to the tail node. The Node announces itself to the
+// neighbor using the path given by the coordinator.
 func (n *Node) ConnectToCoordinator() error {
 	cdrClient, err := rpc.DialHTTP("tcp", n.CdrPath)
 	if err != nil {
@@ -97,14 +111,15 @@ func (n *Node) ConnectToCoordinator() error {
 	n.cdr = cdrClient
 
 	// Announce self to the Coordinatorr
-	reply := craqrpc.AddNodeResponse{}
+	reply := craqrpc.NodeMeta{}
 	args := craqrpc.AddNodeArgs{Path: n.Path}
 	if err := cdrClient.Call("RPC.AddNode", args, &reply); err != nil {
 		return err
 	}
 
 	log.Printf("reply %+v\n", reply)
-	n.head = reply.Head
+	n.isHead = reply.IsHead
+	n.isTail = reply.IsTail
 	n.tail = reply.Tail
 
 	if reply.Prev != "" {

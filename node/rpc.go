@@ -1,6 +1,7 @@
 package node
 
 import (
+	"errors"
 	"log"
 
 	"github.com/despreston/go-craq/craqrpc"
@@ -16,7 +17,6 @@ type RPC struct {
 // Ping responds to ping messages. The coordinator should call this method via
 // rpc to ensure the node is still functioning.
 func (nRPC *RPC) Ping(_ *craqrpc.PingArgs, r *craqrpc.AckResponse) error {
-	log.Println("Replying to ping.")
 	r.Ok = true
 	return nil
 }
@@ -26,7 +26,7 @@ func (nRPC *RPC) Ping(_ *craqrpc.PingArgs, r *craqrpc.AckResponse) error {
 // ones. Coordinator uses this method to update metadata of the node when there
 // is a failure or re-organization of the chain.
 func (nRPC *RPC) Update(
-	args *craqrpc.UpdateNodeArgs,
+	args *craqrpc.NodeMeta,
 	_ *craqrpc.AckResponse,
 ) error {
 	log.Printf("Received metadata update: %+v\n", args)
@@ -36,7 +36,8 @@ func (nRPC *RPC) Update(
 
 	errg := errgroup.Group{}
 
-	nRPC.n.head = args.Head
+	nRPC.n.isHead = args.IsHead
+	nRPC.n.isTail = args.IsTail
 	nRPC.n.tail = args.Tail
 
 	prev := nRPC.n.neighbors[craqrpc.NeighborPosPrev].path
@@ -66,14 +67,14 @@ func (nRPC *RPC) ChangeNeighbor(
 	nRPC.n.mu.Lock()
 	defer nRPC.n.mu.Unlock()
 
-	if nRPC.n.head && args.Pos == craqrpc.NeighborPosPrev {
+	if nRPC.n.isHead && args.Pos == craqrpc.NeighborPosPrev {
 		// Neighbor is predecessor so this node can't be head.
 		log.Println("No longer head.")
-		nRPC.n.head = false
-	} else if nRPC.n.tail && args.Pos == craqrpc.NeighborPosNext {
+		nRPC.n.isHead = false
+	} else if nRPC.n.isTail && args.Pos == craqrpc.NeighborPosNext {
 		// Neighbor is successor so this node can't be tail.
 		log.Println("No longer tail.")
-		nRPC.n.tail = false
+		nRPC.n.isTail = false
 	}
 
 	return nRPC.n.connectToNode(args.Path, args.Pos)
@@ -85,13 +86,9 @@ func (nRPC *RPC) ClientWrite(
 	args *craqrpc.ClientWriteArgs,
 	reply *craqrpc.AckResponse,
 ) error {
-	version := uint64(1)
-
 	// Increment version based off any existing objects for this key.
-	existing, has := nRPC.n.store.Read(args.Key)
-	if has {
-		version = (*existing).Version() + 1
-	}
+	old, _ := nRPC.n.store.Read(args.Key)
+	version := old.Version + 1
 
 	if err := nRPC.n.store.Write(args.Key, args.Value, version); err != nil {
 		log.Printf("Failed to create during ClientWrite. %v\n", err)
@@ -103,6 +100,16 @@ func (nRPC *RPC) ClientWrite(
 	// Forward the new object to the successor node.
 
 	next := nRPC.n.neighbors[craqrpc.NeighborPosNext]
+
+	// If there's no successor, it means this is the only node in the chain, so
+	// mark the item as committed and return early.
+	if next.path == "" {
+		if err := nRPC.n.store.Commit(args.Key, version); err != nil {
+			return err
+		}
+		reply.Ok = true
+		return nil
+	}
 
 	writeArgs := craqrpc.WriteArgs{
 		Key:     args.Key,
@@ -122,7 +129,8 @@ func (nRPC *RPC) ClientWrite(
 
 // Write adds an object to the chain. If the node is not the tail, the Write is
 // forwarded to the next node in the chain. If the node is tail, the object is
-// marked clean and a MarkClean message is sent to the predecessor in the chain.
+// marked committed and a Commit message is sent to the predecessor in the
+// chain.
 func (nRPC *RPC) Write(
 	args *craqrpc.WriteArgs,
 	reply *craqrpc.AckResponse,
@@ -132,7 +140,7 @@ func (nRPC *RPC) Write(
 		return err
 	}
 
-	if !nRPC.n.tail {
+	if !nRPC.n.isTail {
 		// Forward to successor
 		next := nRPC.n.neighbors[craqrpc.NeighborPosNext]
 
@@ -146,24 +154,24 @@ func (nRPC *RPC) Write(
 		return nil
 	}
 
-	if err := nRPC.n.store.MarkClean(args.Key, args.Version); err != nil {
-		log.Printf("Failed to mark as clean in Write. %v\n", err)
+	if err := nRPC.n.store.Commit(args.Key, args.Version); err != nil {
+		log.Printf("Failed to mark as committed in Write. %v\n", err)
 		return err
 	}
 
-	// Start telling predecessors to mark this version clean.
+	// Start telling predecessors to mark this version committed.
 
 	prev := nRPC.n.neighbors[craqrpc.NeighborPosPrev]
-	mcArgs := craqrpc.MarkCleanArgs{Key: args.Key, Version: args.Version}
+	mcArgs := craqrpc.CommitArgs{Key: args.Key, Version: args.Version}
 
 	err := prev.client.Call(
-		"RPC.MarkClean",
+		"RPC.Commit",
 		&mcArgs,
 		&craqrpc.AckResponse{},
 	)
 
 	if err != nil {
-		log.Printf("Failed to send MarkClean to predecessor in Write. %v\n", err)
+		log.Printf("Failed to send Commit to predecessor in Write. %v\n", err)
 		return err
 	}
 
@@ -171,11 +179,30 @@ func (nRPC *RPC) Write(
 	return nil
 }
 
-// MarkClean will mark an object clean in storage.
-func (nRPC *RPC) MarkClean(
-	args *craqrpc.MarkCleanArgs,
+// Commit marks an object as committed in storage.
+func (nRPC *RPC) Commit(
+	args *craqrpc.CommitArgs,
 	reply *craqrpc.AckResponse,
 ) error {
-	log.Printf("marking clean k: %s, v: %v\n", args.Key, args.Version)
+	log.Printf("marking committed k: %s, v: %v\n", args.Key, args.Version)
+	return nRPC.n.store.Commit(args.Key, args.Version)
+}
+
+// Read returns values from the store.
+func (nRPC *RPC) Read(
+	args *craqrpc.ReadArgs,
+	reply *craqrpc.ReadResponse,
+) error {
+	item, err := nRPC.n.store.Read(args.Key)
+
+	switch err {
+	case ErrNotFound:
+		return errors.New("key doesn't exist")
+	case ErrDirtyItem:
+		// TODO: Get latest version from tail and then read that specific version.
+	}
+
+	reply.Key = args.Key
+	reply.Value = item.Value
 	return nil
 }

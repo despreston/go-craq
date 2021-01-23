@@ -59,8 +59,6 @@ func (cdr *Coordinator) pingReplicas() {
 	for {
 		for i, n := range cdr.replicas {
 			go func(n *node, i int) {
-				log.Printf("pinging replica %d\n", i)
-
 				var reply craqrpc.AckResponse
 				pingCh := n.RPC.Go("RPC.Ping", &craqrpc.PingArgs{}, &reply, nil)
 
@@ -134,10 +132,11 @@ func (cdr *Coordinator) updateNode(i int) error {
 	log.Printf("Sending metadata to %s.\n", n.Path)
 
 	var reply craqrpc.AckResponse
-	var args craqrpc.UpdateNodeArgs
+	var args craqrpc.NodeMeta
 
-	args.Head = i == 0
-	args.Tail = len(cdr.replicas) == i+1
+	args.IsHead = i == 0
+	args.IsTail = len(cdr.replicas) == i+1
+	args.Tail = cdr.replicas[len(cdr.replicas)-1].Path
 
 	if len(cdr.replicas) > 1 {
 		if i > 0 {

@@ -22,18 +22,11 @@ type AddNodeArgs struct {
 	Path string // address for rpc.Client connection
 }
 
-// AddNodeResponse lets the Coordinator respond to the AddNode message with some
-// metadata for the node to place itself into the correct position.
-type AddNodeResponse struct {
-	Head, Tail bool
-	Prev, Next string // path to neighbors
-}
-
-// UpdateNodeArgs are the arguments for the RPC command for updating a node's
-// metadata.
-type UpdateNodeArgs struct {
-	Head, Tail bool
-	Prev, Next string
+// NodeMeta is for sending info to a node to let the node know where in the
+// chain it sits. The node will update itself when receiving this message.
+type NodeMeta struct {
+	IsHead, IsTail   bool
+	Prev, Next, Tail string // host + port to neighbors and tail node
 }
 
 // PingArgs are arguments for Ping RPC command.
@@ -64,8 +57,34 @@ type WriteArgs struct {
 	Version uint64
 }
 
-// MarkCleanArgs should be sent to a node to tell it to mark an object as clean.
-type MarkCleanArgs struct {
+// CommitArgs should be sent to a node to tell it to mark an object as
+// committed. When an object is marked committed, it means it's been replicated
+// on every available node in the chain.
+type CommitArgs struct {
+	Key     string
+	Version uint64
+}
+
+// ReadArgs are for reading from a node's storage.
+type ReadArgs struct {
+	Key string
+}
+
+// ReadResponse is the response a node will give when reading from the store.
+type ReadResponse struct {
+	Key   string
+	Value []byte
+}
+
+// VersionArgs is the messaged used by nodes to request the latest committed
+// version from the tail node.
+type VersionArgs struct {
+	Key string
+}
+
+// VersionResponse is the tail node's response to a node asking what the latest
+// committed version of an item is.
+type VersionResponse struct {
 	Key     string
 	Version uint64
 }

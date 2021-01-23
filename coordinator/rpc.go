@@ -21,7 +21,7 @@ type RPC struct {
 // announcing itself to the previous Node in the chain.
 func (cRPC *RPC) AddNode(
 	args *craqrpc.AddNodeArgs,
-	reply *craqrpc.AddNodeResponse,
+	reply *craqrpc.NodeMeta,
 ) error {
 	log.Printf("received AddNode from %s\n", args.Path)
 
@@ -39,11 +39,12 @@ func (cRPC *RPC) AddNode(
 
 	cRPC.c.replicas = append(cRPC.c.replicas, n)
 	cRPC.c.tail = n
-	reply.Tail = true
+	reply.IsTail = true
+	reply.Tail = args.Path
 
 	if len(cRPC.c.replicas) == 1 {
 		cRPC.c.head = n
-		reply.Head = true
+		reply.IsHead = true
 	} else {
 		reply.Prev = cRPC.c.replicas[len(cRPC.c.replicas)-2].Path
 	}

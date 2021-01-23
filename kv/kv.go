@@ -4,104 +4,107 @@ package kv
 
 import (
 	"fmt"
+	"log"
 	"sync"
+
+	"github.com/despreston/go-craq/node"
 )
-
-// Item is a meta data and value for an object in the Store. A key inside the
-// store might have multiple versions of the same Item.
-type Item struct {
-	version uint64
-	dirty   bool
-	val     []byte
-}
-
-func (i *Item) Version() uint64 { return i.version }
-func (i *Item) Dirty() bool     { return i.dirty }
-func (i *Item) Val() []byte     { return i.val }
 
 // Store is an in-memory key/value storage.
 type Store struct {
-	items map[string][]*Item
+	items map[string][]*node.Item
 	mu    sync.Mutex
 }
 
-// Read returns the latest clean version of an item. If there's a dirty version
-// of the item in the store, (nil, false) is returned to signify that the item
-// should be requested from the tail of the chain. If the item is in the clean
-// state, (*Item, true) is returned.
-func (s *Store) Read(key string) (*Item, bool) {
+func New() *Store {
+	return &Store{
+		items: make(map[string][]*node.Item),
+	}
+}
+
+func (s *Store) lookup(key string) ([]*node.Item, bool) {
+	items, _ := s.items[key]
+	if len(items) == 0 {
+		return nil, false
+	}
+	return items, true
+}
+
+// Read returns an item from the store by key. If there is an uncommitted
+// (dirty) version of the item in the store, it returns a node.ErrDirtyItem
+// error. If no item exists for that key it returns a node.ErrNotFound error.
+func (s *Store) Read(key string) (*node.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	items, has := s.items[key]
-
+	items, has := s.lookup(key)
 	if !has {
-		return nil, has
+		return &node.Item{}, node.ErrNotFound
 	}
 
 	// If the object has multiple versions, it can be implicitly determined that
-	// the item's state is dirty, because the Item's history is purged when a
-	// version is marked clean.
-	// if len(items) > 1 {
-	// 	return nil, false
-	// }
+	// the item's state is dirty, because the node.Item's history is purged
+	// when a version is marked clean.
+	if len(items) > 1 {
+		return nil, node.ErrDirtyItem
+	}
 
-	return items[0], true
+	return items[0], nil
 }
 
 // ReadVersion finds an item for the given key with the matching version. If no
 // item is found for that version of key, (nil, false) is returned.
-func (s *Store) ReadVersion(key string, version uint64) (*Item, bool) {
+func (s *Store) ReadVersion(key string, version uint64) (*node.Item, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	items, has := s.items[key]
+	items, has := s.lookup(key)
 	if !has {
-		return nil, false
+		return &node.Item{}, false
 	}
 
 	for _, item := range items {
-		if item.version == version {
+		if item.Version == version {
 			return item, true
 		}
 	}
 
-	return nil, false
+	return &node.Item{}, false
 }
 
 // Adds a new item to the store.
-func (s *Store) Write(key string, val []byte, version uint64) *Item {
+func (s *Store) Write(key string, val []byte, version uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	item := Item{
-		dirty:   true,
-		val:     val,
-		version: version,
+	item := node.Item{
+		Committed: false,
+		Value:     val,
+		Version:   version,
 	}
 
 	s.items[key] = append(s.items[key], &item)
-	return &item
+	return nil
 }
 
-// MarkClean sets the dirty flag to false and purges any old versions of the
+// Commit sets the committed flag to false and purges any old versions of the
 // item for the given key.
-func (s *Store) MarkClean(key string, version uint64) error {
+func (s *Store) Commit(key string, version uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	items, has := s.items[key]
+	items, has := s.lookup(key)
 	if !has {
 		return fmt.Errorf("no item for key %s so can't mark clean", key)
 	}
 
-	// Update the dirty flag and find index in items where version is older than
-	// item.version. If this version is the oldest for this key, the index will be
-	// -1.
+	// Update the committed flag and find index in items where version is older
+	// than item.version. If this version is the oldest for this key, the index
+	// will be -1.
 	var older int
 	for i, itm := range items {
-		if itm.version == version {
-			itm.dirty = false
+		if itm.Version == version {
+			itm.Committed = true
 			older = i - 1
 			break
 		}
@@ -109,8 +112,9 @@ func (s *Store) MarkClean(key string, version uint64) error {
 
 	// Remove the older items if there are any.
 	if older > -1 {
-		s.items[key] = s.items[key][older:]
+		s.items[key] = s.items[key][older+1:]
 	}
 
+	log.Printf("Marked version %d of key %s committed.\n", version, key)
 	return nil
 }
