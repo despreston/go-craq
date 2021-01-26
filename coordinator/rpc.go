@@ -3,7 +3,6 @@ package coordinator
 import (
 	"errors"
 	"log"
-	"net/rpc"
 	"time"
 
 	"github.com/despreston/go-craq/craqrpc"
@@ -12,6 +11,10 @@ import (
 // RPC wraps around Coordinator for rpc calls.
 type RPC struct {
 	c *Coordinator
+}
+
+func ConnectToNode(node nodeDispatcher) error {
+	return node.Connect()
 }
 
 // AddNode should be called by Nodes to announce themselves to the Coordinator.
@@ -25,16 +28,14 @@ func (cRPC *RPC) AddNode(
 ) error {
 	log.Printf("received AddNode from %s\n", args.Path)
 
-	client, err := rpc.DialHTTP("tcp", args.Path)
-	if err != nil {
-		log.Printf("failed to dial client %s\n", args.Path)
-		return err
+	n := &node{
+		last: time.Now(),
+		path: args.Path,
 	}
 
-	n := &node{
-		RPC:  client,
-		last: time.Now(),
-		Path: args.Path,
+	if err := ConnectToNode(n); err != nil {
+		log.Printf("failed to connect to node %s\n", args.Path)
+		return err
 	}
 
 	cRPC.c.replicas = append(cRPC.c.replicas, n)
@@ -46,13 +47,13 @@ func (cRPC *RPC) AddNode(
 		cRPC.c.head = n
 		reply.IsHead = true
 	} else {
-		reply.Prev = cRPC.c.replicas[len(cRPC.c.replicas)-2].Path
+		reply.Prev = cRPC.c.replicas[len(cRPC.c.replicas)-2].Path()
 	}
 
 	return nil
 }
 
-// Write should be called by clients to write a new object to the chain.
+// Write a new object to the chain.
 func (cRPC *RPC) Write(
 	args *craqrpc.ClientWriteArgs,
 	reply *craqrpc.AckResponse,
@@ -64,8 +65,8 @@ func (cRPC *RPC) Write(
 
 	// Forward the write to the head
 	head := cRPC.c.replicas[0]
-	err := head.RPC.Call("RPC.ClientWrite", &args, &reply)
-	if err != nil || !reply.Ok {
+	result, err := head.ClientWrite(args)
+	if err != nil || !result.Ok {
 		reply.Ok = false
 		return err
 	}

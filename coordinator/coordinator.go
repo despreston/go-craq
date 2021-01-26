@@ -20,14 +20,16 @@ import (
 )
 
 const (
-	pingTimeout  = 5 // secs
-	pingInterval = 3 // secs
+	pingTimeout  = 5 * time.Second
+	pingInterval = 3 * time.Second
 )
 
-type node struct {
-	RPC  *rpc.Client
-	last time.Time // last successful ping
-	Path string
+type nodeDispatcher interface {
+	Connect() error
+	Path() string
+	Ping() (*craqrpc.AckResponse, error)
+	Update(*craqrpc.NodeMeta) (*craqrpc.AckResponse, error)
+	ClientWrite(*craqrpc.ClientWriteArgs) (*craqrpc.AckResponse, error)
 }
 
 // Coordinator is responsible for tracking the Nodes in the chain.
@@ -36,7 +38,7 @@ type Coordinator struct {
 	head     *node
 	tail     *node
 	mu       sync.Mutex
-	replicas []*node
+	replicas []nodeDispatcher
 }
 
 // ListenAndServe registers this node with the coordinator and begins listening
@@ -55,29 +57,28 @@ func (cdr *Coordinator) ListenAndServe() error {
 // after creating a new Coordinator.
 func (cdr *Coordinator) pingReplicas() {
 	log.Println("starting pinging")
-
 	for {
-		for i, n := range cdr.replicas {
-			go func(n *node, i int) {
-				var reply craqrpc.AckResponse
-				pingCh := n.RPC.Go("RPC.Ping", &craqrpc.PingArgs{}, &reply, nil)
+		for _, n := range cdr.replicas {
+			go func(n nodeDispatcher) {
+				doneCh := make(chan bool, 1)
+				result, err := n.Ping()
+				doneCh <- true
 
 				select {
-				case <-pingCh.Done:
-					if !reply.Ok {
+				case <-doneCh:
+					if err != nil || !result.Ok {
 						cdr.removeNode(n)
 					}
-				case <-time.After(pingTimeout * time.Second):
+				case <-time.After(pingTimeout):
 					cdr.removeNode(n)
 				}
-			}(n, i)
+			}(n)
 		}
-
-		time.Sleep(pingInterval * time.Second)
+		time.Sleep(pingInterval)
 	}
 }
 
-func (cdr *Coordinator) findReplicaIndex(n *node) (int, bool) {
+func (cdr *Coordinator) findReplicaIndex(n nodeDispatcher) (int, bool) {
 	for i, replica := range cdr.replicas {
 		if replica == n {
 			return i, true
@@ -86,7 +87,7 @@ func (cdr *Coordinator) findReplicaIndex(n *node) (int, bool) {
 	return 0, false
 }
 
-func (cdr *Coordinator) removeNode(n *node) {
+func (cdr *Coordinator) removeNode(n nodeDispatcher) {
 	cdr.mu.Lock()
 	defer cdr.mu.Unlock()
 
@@ -96,7 +97,7 @@ func (cdr *Coordinator) removeNode(n *node) {
 	}
 
 	cdr.replicas = append(cdr.replicas[:idx], cdr.replicas[idx+1:]...)
-	log.Printf("removed node %s", n.Path)
+	log.Printf("removed node %s", n.Path())
 
 	// No more nodes in the chain.
 	if len(cdr.replicas) < 1 {
@@ -129,30 +130,33 @@ func (cdr *Coordinator) removeNode(n *node) {
 func (cdr *Coordinator) updateNode(i int) error {
 	n := cdr.replicas[i]
 
-	log.Printf("Sending metadata to %s.\n", n.Path)
+	log.Printf("Sending metadata to %s.\n", n.Path())
 
-	var reply craqrpc.AckResponse
 	var args craqrpc.NodeMeta
 
 	args.IsHead = i == 0
 	args.IsTail = len(cdr.replicas) == i+1
-	args.Tail = cdr.replicas[len(cdr.replicas)-1].Path
+	args.Tail = cdr.replicas[len(cdr.replicas)-1].Path()
 
 	if len(cdr.replicas) > 1 {
 		if i > 0 {
 			// Not the first node, so add path to previous.
-			args.Prev = cdr.replicas[i-1].Path
+			args.Prev = cdr.replicas[i-1].Path()
 		}
 		if i+1 != len(cdr.replicas) {
 			// Not the last node, so add path to next.
-			args.Next = cdr.replicas[i+1].Path
+			args.Next = cdr.replicas[i+1].Path()
 		}
 	}
 
 	// call Update method on node
-	err := n.RPC.Call("RPC.Update", &args, &reply)
-	if err != nil || !reply.Ok {
+	reply, err := n.Update(&args)
+	if err != nil {
 		return err
+	}
+
+	if !reply.Ok {
+		log.Printf("Update reply from node %d was not OK.\n", i)
 	}
 
 	return nil

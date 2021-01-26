@@ -16,6 +16,7 @@ type Store struct {
 	mu    sync.Mutex
 }
 
+// New store
 func New() *Store {
 	return &Store{
 		items: make(map[string][]*node.Item),
@@ -30,9 +31,9 @@ func (s *Store) lookup(key string) ([]*node.Item, bool) {
 	return items, true
 }
 
-// Read returns an item from the store by key. If there is an uncommitted
-// (dirty) version of the item in the store, it returns a node.ErrDirtyItem
-// error. If no item exists for that key it returns a node.ErrNotFound error.
+// Read an item from the store by key. If there is an uncommitted (dirty)
+// version of the item in the store, it returns a node.ErrDirtyItem error. If no
+// item exists for that key it returns a node.ErrNotFound error.
 func (s *Store) Read(key string) (*node.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -72,7 +73,7 @@ func (s *Store) ReadVersion(key string, version uint64) (*node.Item, bool) {
 	return &node.Item{}, false
 }
 
-// Adds a new item to the store.
+// Write a new item to the store.
 func (s *Store) Write(key string, val []byte, version uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -87,8 +88,7 @@ func (s *Store) Write(key string, val []byte, version uint64) error {
 	return nil
 }
 
-// Commit sets the committed flag to false and purges any old versions of the
-// item for the given key.
+// Commit a version for the given key.
 func (s *Store) Commit(key string, version uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
