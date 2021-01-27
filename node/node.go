@@ -138,11 +138,7 @@ func (n *Node) ConnectToCoordinator() error {
 		// If the neighbor is unreachable, swallow the error so this node doesn't
 		// also fail.
 		if err := n.connectToNode(reply.Prev, craqrpc.NeighborPosPrev); err == nil {
-			// announceToNeighbor(
-			// 	n.neighbors[craqrpc.NeighborPosPrev].client,
-			// 	n.Path,
-			// 	craqrpc.NeighborPosNext,
-			// )
+			log.Printf("Failed to connect to node in ConnectToCoordinator. %v\n", err)
 		}
 	} else if n.neighbors[craqrpc.NeighborPosPrev].path != "" {
 		// Close the connection to the previous predecessor.
@@ -150,15 +146,6 @@ func (n *Node) ConnectToCoordinator() error {
 	}
 
 	return nil
-}
-
-func announceToNeighbor(
-	c *rpc.Client,
-	path string,
-	pos craqrpc.NeighborPos,
-) error {
-	args := craqrpc.ChangeNeighborArgs{Pos: pos, Path: path}
-	return c.Call("RPC.ChangeNeighbor", args, &craqrpc.ChangeNeighborResponse{})
 }
 
 func (n *Node) connectToNode(path string, pos craqrpc.NeighborPos) error {

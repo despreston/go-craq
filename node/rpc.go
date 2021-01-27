@@ -74,29 +74,6 @@ func (nRPC *RPC) Update(
 	return err
 }
 
-// ChangeNeighbor connects to args.Path and replaces the current neighbor at
-// args.Pos. ChangeNeighbor provides a way for Nodes to announce themselves to
-// their neighbors directly without having to go through the Coordinator.
-func (nRPC *RPC) ChangeNeighbor(
-	args *craqrpc.ChangeNeighborArgs,
-	_ *craqrpc.ChangeNeighborResponse,
-) error {
-	nRPC.n.mu.Lock()
-	defer nRPC.n.mu.Unlock()
-
-	if nRPC.n.isHead && args.Pos == craqrpc.NeighborPosPrev {
-		// Neighbor is predecessor so this node can't be head.
-		log.Println("No longer head.")
-		nRPC.n.isHead = false
-	} else if nRPC.n.isTail && args.Pos == craqrpc.NeighborPosNext {
-		// Neighbor is successor so this node can't be tail.
-		log.Println("No longer tail.")
-		nRPC.n.isTail = false
-	}
-
-	return nRPC.n.connectToNode(args.Path, args.Pos)
-}
-
 // ClientWrite adds a new object to the chain and starts the process of
 // replication.
 func (nRPC *RPC) ClientWrite(
