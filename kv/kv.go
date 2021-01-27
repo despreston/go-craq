@@ -54,23 +54,23 @@ func (s *Store) Read(key string) (*node.Item, error) {
 }
 
 // ReadVersion finds an item for the given key with the matching version. If no
-// item is found for that version of key, (nil, false) is returned.
-func (s *Store) ReadVersion(key string, version uint64) (*node.Item, bool) {
+// item is found for that version of key, node.ErrNotFound is returned
+func (s *Store) ReadVersion(key string, version uint64) (*node.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	items, has := s.lookup(key)
 	if !has {
-		return &node.Item{}, false
+		return &node.Item{}, node.ErrNotFound
 	}
 
 	for _, item := range items {
 		if item.Version == version {
-			return item, true
+			return item, nil
 		}
 	}
 
-	return &node.Item{}, false
+	return &node.Item{}, nil
 }
 
 // Write a new item to the store.
