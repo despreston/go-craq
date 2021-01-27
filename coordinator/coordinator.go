@@ -96,11 +96,21 @@ func (cdr *Coordinator) removeNode(n nodeDispatcher) {
 		return
 	}
 
+	wasTail := idx == len(cdr.replicas)-1
 	cdr.replicas = append(cdr.replicas[:idx], cdr.replicas[idx+1:]...)
 	log.Printf("removed node %s", n.Path())
 
 	// No more nodes in the chain.
 	if len(cdr.replicas) < 1 {
+		return
+	}
+
+	if wasTail {
+		// Because the tail node changed, all the other nodes need to be updated to
+		// know where the tail is.
+		for i := 0; i < len(cdr.replicas); i++ {
+			go cdr.updateNode(i)
+		}
 		return
 	}
 
@@ -114,9 +124,8 @@ func (cdr *Coordinator) removeNode(n nodeDispatcher) {
 		}
 	}
 
-	// If there's more than 1 replica now it means there was a predecessor to the
-	// node that was removed. Need to send updated metadata to that node.
-	if len(cdr.replicas) > 1 {
+	// Send update to predecessor
+	if idx > 0 {
 		err := cdr.updateNode(idx - 1)
 		if err != nil {
 			log.Printf("Failed to update predecessor: %v\n", err)

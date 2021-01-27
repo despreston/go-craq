@@ -50,6 +50,12 @@ func (cRPC *RPC) AddNode(
 		reply.Prev = cRPC.c.replicas[len(cRPC.c.replicas)-2].Path()
 	}
 
+	// Because the tail node changed, all the other nodes need to be updated to
+	// know where the tail is.
+	for i := 0; i < len(cRPC.c.replicas)-1; i++ {
+		go cRPC.c.updateNode(i)
+	}
+
 	return nil
 }
 

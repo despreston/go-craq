@@ -14,7 +14,7 @@ type node struct {
 }
 
 func (n *node) Connect() error {
-	client, err := rpc.DialHTTP("tcp", n.Path())
+	client, err := rpc.DialHTTP("tcp", n.path)
 	if err != nil {
 		return err
 	}

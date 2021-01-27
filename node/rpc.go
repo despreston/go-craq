@@ -27,7 +27,7 @@ func (nRPC *RPC) Ping(_ *craqrpc.PingArgs, r *craqrpc.AckResponse) error {
 // is a failure or re-organization of the chain.
 func (nRPC *RPC) Update(
 	args *craqrpc.NodeMeta,
-	_ *craqrpc.AckResponse,
+	reply *craqrpc.AckResponse,
 ) error {
 	log.Printf("Received metadata update: %+v\n", args)
 
@@ -38,23 +38,40 @@ func (nRPC *RPC) Update(
 
 	nRPC.n.isHead = args.IsHead
 	nRPC.n.isTail = args.IsTail
-	nRPC.n.tail = args.Tail
 
+	// connect to the predecessor if path is different
 	prev := nRPC.n.neighbors[craqrpc.NeighborPosPrev].path
 	if prev != args.Prev && args.Prev != "" {
 		errg.Go(func() error {
+			log.Printf("connecting to new predecessor %s\n", args.Prev)
 			return nRPC.n.connectToNode(args.Prev, craqrpc.NeighborPosPrev)
 		})
 	}
 
-	next := nRPC.n.neighbors[craqrpc.NeighborPosNext].path
-	if next != args.Next && args.Next != "" {
+	// connect to tail if path is different
+	tail := nRPC.n.neighbors[craqrpc.NeighborPosTail]
+	if tail.path != args.Tail && args.Tail != "" {
 		errg.Go(func() error {
+			log.Printf("connecting to new tail %s\n", args.Tail)
+			return nRPC.n.connectToNode(args.Tail, craqrpc.NeighborPosTail)
+		})
+	}
+
+	// Connect to successor if path is different and the successor is not the
+	// tail. A node doesn't bother making a connection to the successor if the
+	// successor is the tail because it already has a connection to the tail via
+	// nRPC.n.neighbors[craqrpc.NeighborPosTail].client
+	next := nRPC.n.neighbors[craqrpc.NeighborPosNext].path
+	if next != args.Next && args.Next != "" && args.Next != args.Tail {
+		errg.Go(func() error {
+			log.Printf("connecting to new successor %s\n", args.Next)
 			return nRPC.n.connectToNode(args.Next, craqrpc.NeighborPosNext)
 		})
 	}
 
-	return errg.Wait()
+	err := errg.Wait()
+	reply.Ok = err == nil
+	return err
 }
 
 // ChangeNeighbor connects to args.Path and replaces the current neighbor at
@@ -140,9 +157,18 @@ func (nRPC *RPC) Write(
 		return err
 	}
 
+	// If this isn't the tail node, the write needs to be forwarded along the
+	// chain to the next node.
 	if !nRPC.n.isTail {
-		// Forward to successor
 		next := nRPC.n.neighbors[craqrpc.NeighborPosNext]
+
+		// To keep the tail-1 node from making two connections to the tail (one as
+		// craqrpc.NeighborPosTail and again as craqrpc.NeighborPosNext), if the
+		// succesor is the tail, only a connection to craqrpc.NeighborPosTail is
+		// made. Therefore, if this is blank, it means the next node is the tail.
+		if next.path == "" {
+			next = nRPC.n.neighbors[craqrpc.NeighborPosTail]
+		}
 
 		err := next.client.Call("RPC.Write", &args, &craqrpc.AckResponse{})
 		if err != nil {
@@ -185,7 +211,11 @@ func (nRPC *RPC) Commit(
 	reply *craqrpc.AckResponse,
 ) error {
 	log.Printf("marking committed k: %s, v: %v\n", args.Key, args.Version)
-	return nRPC.n.store.Commit(args.Key, args.Version)
+	err := nRPC.n.store.Commit(args.Key, args.Version)
+	if err == nil {
+		nRPC.n.latest[args.Key] = args.Version
+	}
+	return err
 }
 
 // Read returns values from the store.
@@ -204,5 +234,16 @@ func (nRPC *RPC) Read(
 
 	reply.Key = args.Key
 	reply.Value = item.Value
+	return nil
+}
+
+// LatestVersion provides the latest committed version for a given key in the
+// store.
+func (nRPC *RPC) LatestVersion(
+	args *craqrpc.VersionArgs,
+	reply *craqrpc.VersionResponse,
+) error {
+	reply.Key = args.Key
+	reply.Version = nRPC.n.latest[args.Key]
 	return nil
 }

@@ -10,6 +10,7 @@ type NeighborPos int
 const (
 	NeighborPosPrev NeighborPos = iota
 	NeighborPosNext
+	NeighborPosTail
 )
 
 // AckResponse is used to respond to RPC commands with a simple flag.

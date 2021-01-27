@@ -24,6 +24,7 @@ var (
 	ErrDirtyItem = errors.New("key has an uncommitted version")
 )
 
+// neighbor is another node in the chain
 type neighbor struct {
 	client *rpc.Client
 	path   string
@@ -53,19 +54,19 @@ type Opts struct {
 // Node is what the white paper refers to as a node. This is the client that is
 // responsible for storing data and handling reads/writes.
 type Node struct {
-	neighbors      map[craqrpc.NeighborPos]neighbor
+	neighbors      map[craqrpc.NeighborPos]neighbor // other nodes in the chain
+	store          storer                           // storage layer
+	latest         map[string]uint64                // latest version of a given key
+	CdrPath        string                           // host + port to coordinator
+	cdr            *rpc.Client                      // coordinator rpc client
+	Path           string                           // host + port for rpc communication
 	isHead, isTail bool
-	tail           string      // path to the tail node
-	store          storer      // storage layer
-	CdrPath        string      // host + port to coordinator
-	cdr            *rpc.Client // coordinator rpc client
-	Path           string      // host + port for rpc communication
 	mu             sync.Mutex
 }
 
 func New(opts Opts) *Node {
 	return &Node{
-		neighbors: make(map[craqrpc.NeighborPos]neighbor, 2),
+		neighbors: make(map[craqrpc.NeighborPos]neighbor, 3),
 		CdrPath:   opts.CdrPath,
 		Path:      opts.Path,
 		store:     opts.Store,
@@ -103,11 +104,11 @@ func (n *Node) ListenAndServe() error {
 func (n *Node) ConnectToCoordinator() error {
 	cdrClient, err := rpc.DialHTTP("tcp", n.CdrPath)
 	if err != nil {
-		log.Println("error connecting to the coordinator")
+		log.Println("Error connecting to the coordinator")
 		return err
 	}
 
-	log.Printf("connected to coordinator at %s\n", n.CdrPath)
+	log.Printf("Connected to coordinator at %s\n", n.CdrPath)
 	n.cdr = cdrClient
 
 	// Announce self to the Coordinatorr
@@ -120,17 +121,28 @@ func (n *Node) ConnectToCoordinator() error {
 	log.Printf("reply %+v\n", reply)
 	n.isHead = reply.IsHead
 	n.isTail = reply.IsTail
-	n.tail = reply.Tail
+	n.neighbors[craqrpc.NeighborPosTail] = neighbor{path: reply.Tail}
+
+	if !reply.IsTail {
+		tailClient, err := rpc.DialHTTP("tcp", reply.Tail)
+		if err != nil {
+			log.Println("Error connecting to the tail during ConnectToCoordinator")
+			return err
+		}
+		tail := n.neighbors[craqrpc.NeighborPosTail]
+		tail.client = tailClient
+		log.Printf("Connected to the tail node %s", tail.path)
+	}
 
 	if reply.Prev != "" {
 		// If the neighbor is unreachable, swallow the error so this node doesn't
 		// also fail.
 		if err := n.connectToNode(reply.Prev, craqrpc.NeighborPosPrev); err == nil {
-			announceToNeighbor(
-				n.neighbors[craqrpc.NeighborPosPrev].client,
-				n.Path,
-				craqrpc.NeighborPosNext,
-			)
+			// announceToNeighbor(
+			// 	n.neighbors[craqrpc.NeighborPosPrev].client,
+			// 	n.Path,
+			// 	craqrpc.NeighborPosNext,
+			// )
 		}
 	} else if n.neighbors[craqrpc.NeighborPosPrev].path != "" {
 		// Close the connection to the previous predecessor.
@@ -150,13 +162,12 @@ func announceToNeighbor(
 }
 
 func (n *Node) connectToNode(path string, pos craqrpc.NeighborPos) error {
-	log.Printf("connecting to %s\n", path)
 	client, err := rpc.DialHTTP("tcp", path)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("connected to neighbor %s\n", path)
+	log.Printf("connected to %s\n", path)
 
 	// Disconnect from current neighbor if there's one connected.
 	nbr := n.neighbors[pos]
