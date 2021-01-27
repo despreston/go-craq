@@ -163,23 +163,24 @@ func (nRPC *RPC) Write(
 	}
 
 	// Start telling predecessors to mark this version committed.
+	nRPC.sendCommitToPrev(args.Key, args.Version)
 
-	prev := nRPC.n.neighbors[craqrpc.NeighborPosPrev]
-	mcArgs := craqrpc.CommitArgs{Key: args.Key, Version: args.Version}
+	reply.Ok = true
+	return nil
+}
 
-	err := prev.client.Call(
+func (nRPC *RPC) sendCommitToPrev(key string, version uint64) error {
+	err := nRPC.n.neighbors[craqrpc.NeighborPosPrev].client.Call(
 		"RPC.Commit",
-		&mcArgs,
+		&craqrpc.CommitArgs{Key: key, Version: version},
 		&craqrpc.AckResponse{},
 	)
 
 	if err != nil {
-		log.Printf("Failed to send Commit to predecessor in Write. %v\n", err)
-		return err
+		log.Printf("Failed to send Commit to predecessor. %v\n", err)
 	}
 
-	reply.Ok = true
-	return nil
+	return err
 }
 
 // Commit marks an object as committed in storage.
