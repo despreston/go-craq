@@ -42,6 +42,7 @@ type storer interface {
 	Read(string) (*Item, error)
 	Write(string, []byte, uint64) error
 	Commit(string, uint64) error
+	ReadVersion(string, uint64) (*Item, error)
 }
 
 // Opts is for passing options to the Node constructor.

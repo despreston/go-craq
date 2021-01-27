@@ -196,7 +196,9 @@ func (nRPC *RPC) Commit(
 	return err
 }
 
-// Read returns values from the store.
+// Read returns values from the store. If the store returns ErrDirtyItem, ask
+// the tail for the latest committed version for this key. That ensures that
+// every node in the chain returns the same version.
 func (nRPC *RPC) Read(
 	args *craqrpc.ReadArgs,
 	reply *craqrpc.ReadResponse,
@@ -207,12 +209,34 @@ func (nRPC *RPC) Read(
 	case ErrNotFound:
 		return errors.New("key doesn't exist")
 	case ErrDirtyItem:
-		// TODO: Get latest version from tail and then read that specific version.
+		v, err := nRPC.getLatestVersion(args.Key)
+
+		if err != nil {
+			log.Printf(
+				"Failed to get latest version of %s from the tail. %v\n",
+				args.Key,
+				err,
+			)
+			return err
+		}
+
+		item, err = nRPC.n.store.ReadVersion(args.Key, v)
+		if err != nil {
+			return err
+		}
 	}
 
 	reply.Key = args.Key
 	reply.Value = item.Value
 	return nil
+}
+
+func (nRPC *RPC) getLatestVersion(key string) (uint64, error) {
+	var reply craqrpc.VersionResponse
+	tail := nRPC.n.neighbors[craqrpc.NeighborPosTail]
+	args := craqrpc.VersionArgs{Key: key}
+	err := tail.client.Call("RPC.LatestVersion", &args, &reply)
+	return reply.Version, err
 }
 
 // LatestVersion provides the latest committed version for a given key in the
