@@ -60,13 +60,16 @@ func (cdr *Coordinator) pingReplicas() {
 	for {
 		for _, n := range cdr.replicas {
 			go func(n nodeDispatcher) {
-				doneCh := make(chan bool, 1)
-				result, err := n.Ping()
-				doneCh <- true
+				resultCh := make(chan bool, 1)
+
+				go func() {
+					result, err := n.Ping()
+					resultCh <- (result.Ok && err == nil)
+				}()
 
 				select {
-				case <-doneCh:
-					if err != nil || !result.Ok {
+				case ok := <-resultCh:
+					if !ok {
 						cdr.removeNode(n)
 					}
 				case <-time.After(pingTimeout):

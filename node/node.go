@@ -30,8 +30,8 @@ type neighbor struct {
 	path   string
 }
 
-// Item is a meta data and value for an object in the Store. A key inside the
-// store might have multiple versions of the same Item.
+// Item is an object in the Store. A key inside the store might have multiple
+// versions.
 type Item struct {
 	Version   uint64
 	Committed bool
@@ -65,6 +65,7 @@ type Node struct {
 	mu             sync.Mutex
 }
 
+// New creates a new Node.
 func New(opts Opts) *Node {
 	return &Node{
 		neighbors: make(map[craqrpc.NeighborPos]neighbor, 3),
