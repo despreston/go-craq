@@ -40,7 +40,7 @@ func (s *Store) Read(key string) (*node.Item, error) {
 
 	items, has := s.lookup(key)
 	if !has {
-		return &node.Item{}, node.ErrNotFound
+		return nil, node.ErrNotFound
 	}
 
 	// If the object has multiple versions, it can be implicitly determined that
@@ -61,7 +61,7 @@ func (s *Store) ReadVersion(key string, version uint64) (*node.Item, error) {
 
 	items, has := s.lookup(key)
 	if !has {
-		return &node.Item{}, node.ErrNotFound
+		return nil, node.ErrNotFound
 	}
 
 	for _, item := range items {
@@ -70,7 +70,7 @@ func (s *Store) ReadVersion(key string, version uint64) (*node.Item, error) {
 		}
 	}
 
-	return &node.Item{}, nil
+	return nil, node.ErrNotFound
 }
 
 // Write a new item to the store.
