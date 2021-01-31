@@ -41,8 +41,8 @@ type Coordinator struct {
 	replicas []nodeDispatcher
 }
 
-// ListenAndServe registers this node with the coordinator and begins listening
-// for messages.
+// ListenAndServe registers RPC methods, starts the RPC server, and begins
+// pinging all connected nodes.
 func (cdr *Coordinator) ListenAndServe() error {
 	cRPC := &RPC{c: cdr}
 	rpc.Register(cRPC)
