@@ -42,4 +42,4 @@ func (n *node) ClientWrite(
 	return &reply, err
 }
 
-func (n *node) Path() string { return n.path }
+func (n node) Path() string { return n.path }

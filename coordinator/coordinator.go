@@ -35,8 +35,8 @@ type nodeDispatcher interface {
 // Coordinator is responsible for tracking the Nodes in the chain.
 type Coordinator struct {
 	Path     string
-	head     *node
-	tail     *node
+	head     nodeDispatcher
+	tail     nodeDispatcher
 	mu       sync.Mutex
 	replicas []nodeDispatcher
 }
@@ -81,20 +81,36 @@ func (cdr *Coordinator) pingReplicas() {
 	}
 }
 
-func (cdr *Coordinator) findReplicaIndex(n nodeDispatcher) (int, bool) {
-	for i, replica := range cdr.replicas {
-		if replica == n {
+func findReplicaIndex(path string, replicas []nodeDispatcher) (int, bool) {
+	for i, replica := range replicas {
+		if replica.Path() == path {
 			return i, true
 		}
 	}
 	return 0, false
 }
 
-func (cdr *Coordinator) removeNode(n nodeDispatcher) {
+func (cdr *Coordinator) updateAll() {
+	wg := sync.WaitGroup{}
+	for i := 0; i < len(cdr.replicas); i++ {
+		wg.Add(1)
+		go func(i int) {
+			cdr.updateNode(i)
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+}
+
+type pathReader interface {
+	Path() string
+}
+
+func (cdr *Coordinator) removeNode(n pathReader) {
 	cdr.mu.Lock()
 	defer cdr.mu.Unlock()
 
-	idx, found := cdr.findReplicaIndex(n)
+	idx, found := findReplicaIndex(n.Path(), cdr.replicas)
 	if !found {
 		return
 	}
@@ -103,17 +119,15 @@ func (cdr *Coordinator) removeNode(n nodeDispatcher) {
 	cdr.replicas = append(cdr.replicas[:idx], cdr.replicas[idx+1:]...)
 	log.Printf("removed node %s", n.Path())
 
-	// No more nodes in the chain.
-	if len(cdr.replicas) < 1 {
-		return
-	}
-
 	if wasTail {
+		cdr.tail = nil
+		if idx > 0 {
+			cdr.tail = cdr.replicas[idx-1]
+		}
+
 		// Because the tail node changed, all the other nodes need to be updated to
 		// know where the tail is.
-		for i := 0; i < len(cdr.replicas); i++ {
-			go cdr.updateNode(i)
-		}
+		cdr.updateAll()
 		return
 	}
 
@@ -127,7 +141,7 @@ func (cdr *Coordinator) removeNode(n nodeDispatcher) {
 		}
 	}
 
-	// Send update to predecessor
+	// Send update to predecessor and update the tail
 	if idx > 0 {
 		err := cdr.updateNode(idx - 1)
 		if err != nil {
