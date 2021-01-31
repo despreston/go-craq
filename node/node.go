@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/despreston/go-craq/craqrpc"
+	"github.com/despreston/go-craq/transport"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -26,7 +27,7 @@ var (
 
 // neighbor is another node in the chain
 type neighbor struct {
-	client *rpc.Client
+	client transport.Client
 	path   string
 }
 
@@ -47,9 +48,10 @@ type storer interface {
 
 // Opts is for passing options to the Node constructor.
 type Opts struct {
-	Store   storer
-	Path    string
-	CdrPath string
+	Store     storer
+	Path      string
+	CdrPath   string
+	Transport transport.Transporter
 }
 
 // Node is what the white paper refers to as a node. This is the client that is
@@ -59,10 +61,11 @@ type Node struct {
 	store          storer                           // storage layer
 	latest         map[string]uint64                // latest version of a given key
 	CdrPath        string                           // host + port to coordinator
-	cdr            *rpc.Client                      // coordinator rpc client
-	Path           string                           // host + port for rpc communication
+	cdr            transport.Client
+	Path           string // host + port for rpc communication
 	isHead, isTail bool
 	mu             sync.Mutex
+	transport      transport.Transporter
 }
 
 // New creates a new Node.
@@ -72,6 +75,7 @@ func New(opts Opts) *Node {
 		CdrPath:   opts.CdrPath,
 		Path:      opts.Path,
 		store:     opts.Store,
+		transport: opts.Transport,
 	}
 }
 
@@ -104,7 +108,7 @@ func (n *Node) ListenAndServe() error {
 // chain and the path to the tail node. The Node announces itself to the
 // neighbor using the path given by the coordinator.
 func (n *Node) ConnectToCoordinator() error {
-	cdrClient, err := rpc.DialHTTP("tcp", n.CdrPath)
+	cdrClient, err := n.transport.Connect(n.CdrPath)
 	if err != nil {
 		log.Println("Error connecting to the coordinator")
 		return err
@@ -126,7 +130,7 @@ func (n *Node) ConnectToCoordinator() error {
 	n.neighbors[craqrpc.NeighborPosTail] = neighbor{path: reply.Tail}
 
 	if !reply.IsTail {
-		tailClient, err := rpc.DialHTTP("tcp", reply.Tail)
+		tailClient, err := n.transport.Connect(reply.Tail)
 		if err != nil {
 			log.Println("Error connecting to the tail during ConnectToCoordinator")
 			return err
@@ -151,7 +155,7 @@ func (n *Node) ConnectToCoordinator() error {
 }
 
 func (n *Node) connectToNode(path string, pos craqrpc.NeighborPos) error {
-	client, err := rpc.DialHTTP("tcp", path)
+	client, err := n.transport.Connect(path)
 	if err != nil {
 		return err
 	}
