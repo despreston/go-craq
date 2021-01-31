@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/despreston/go-craq/craqrpc"
+	"github.com/despreston/go-craq/transport"
 )
 
 const (
@@ -30,15 +31,17 @@ type nodeDispatcher interface {
 	Ping() (*craqrpc.AckResponse, error)
 	Update(*craqrpc.NodeMeta) (*craqrpc.AckResponse, error)
 	ClientWrite(*craqrpc.ClientWriteArgs) (*craqrpc.AckResponse, error)
+	IsConnected() bool
 }
 
 // Coordinator is responsible for tracking the Nodes in the chain.
 type Coordinator struct {
-	Path     string
-	head     nodeDispatcher
-	tail     nodeDispatcher
-	mu       sync.Mutex
-	replicas []nodeDispatcher
+	Path      string
+	head      nodeDispatcher
+	tail      nodeDispatcher
+	mu        sync.Mutex
+	replicas  []nodeDispatcher
+	Transport transport.Transporter
 }
 
 // ListenAndServe registers RPC methods, starts the RPC server, and begins

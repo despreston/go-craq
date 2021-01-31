@@ -10,10 +10,12 @@ import (
 type fakeNode struct {
 	path       string
 	updateArgs *craqrpc.NodeMeta // track what Update was called with
+	connected  bool
 }
 
-func (fakeNode) Connect() error { return nil }
-func (n fakeNode) Path() string { return n.path }
+func (fakeNode) Connect() error      { return nil }
+func (n fakeNode) Path() string      { return n.path }
+func (n fakeNode) IsConnected() bool { return n.connected }
 
 func (fakeNode) Ping() (*craqrpc.AckResponse, error) {
 	return &craqrpc.AckResponse{}, nil
@@ -27,7 +29,7 @@ func (f *fakeNode) Update(nm *craqrpc.NodeMeta) (*craqrpc.AckResponse, error) {
 func (fakeNode) ClientWrite(
 	args *craqrpc.ClientWriteArgs,
 ) (*craqrpc.AckResponse, error) {
-	return &craqrpc.AckResponse{}, nil
+	return &craqrpc.AckResponse{Ok: true}, nil
 }
 
 // Trying to remove a node that isn't in the list of replicas. I guess just make

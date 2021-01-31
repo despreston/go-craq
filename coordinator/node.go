@@ -1,23 +1,27 @@
 package coordinator
 
 import (
-	"net/rpc"
 	"time"
 
 	"github.com/despreston/go-craq/craqrpc"
+	"github.com/despreston/go-craq/transport"
 )
 
 type node struct {
-	client *rpc.Client
-	last   time.Time // last successful ping
-	path   string
+	transport transport.Transporter
+	client    transport.Client
+	connected bool
+	last      time.Time // last successful ping
+	path      string    // host and port
 }
 
 func (n *node) Connect() error {
-	client, err := rpc.DialHTTP("tcp", n.path)
+	client, err := n.transport.Connect(n.path)
 	if err != nil {
+		n.connected = false
 		return err
 	}
+	n.connected = true
 	n.client = client
 	return nil
 }
@@ -42,4 +46,5 @@ func (n *node) ClientWrite(
 	return &reply, err
 }
 
-func (n node) Path() string { return n.path }
+func (n node) Path() string      { return n.path }
+func (n node) IsConnected() bool { return n.connected }

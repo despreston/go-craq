@@ -8,13 +8,11 @@ import (
 	"github.com/despreston/go-craq/craqrpc"
 )
 
+var ErrEmptyChain = errors.New("no nodes in the chain")
+
 // RPC wraps around Coordinator for rpc calls.
 type RPC struct {
 	c *Coordinator
-}
-
-func ConnectToNode(node nodeDispatcher) error {
-	return node.Connect()
 }
 
 // AddNode should be called by Nodes to announce themselves to the Coordinator.
@@ -29,11 +27,12 @@ func (cRPC *RPC) AddNode(
 	log.Printf("received AddNode from %s\n", args.Path)
 
 	n := &node{
-		last: time.Now(),
-		path: args.Path,
+		last:      time.Now(),
+		path:      args.Path,
+		transport: cRPC.c.Transport,
 	}
 
-	if err := ConnectToNode(n); err != nil {
+	if err := n.Connect(); err != nil {
 		log.Printf("failed to connect to node %s\n", args.Path)
 		return err
 	}
@@ -66,7 +65,7 @@ func (cRPC *RPC) Write(
 ) error {
 	if len(cRPC.c.replicas) < 1 {
 		reply.Ok = false
-		return errors.New("no nodes in the chain")
+		return ErrEmptyChain
 	}
 
 	// Forward the write to the head
@@ -77,5 +76,6 @@ func (cRPC *RPC) Write(
 		return err
 	}
 
+	reply.Ok = true
 	return nil
 }
