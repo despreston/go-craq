@@ -17,6 +17,8 @@ func (ftc *FakeTransportClient) Call(
 	return nil
 }
 
+func (ftc *FakeTransportClient) Close() error { return nil }
+
 type FakeTransport struct {
 	connected bool
 }
