@@ -4,24 +4,24 @@ package client
 
 import (
 	"log"
-	"net/rpc"
 
 	"github.com/despreston/go-craq/craqrpc"
+	"github.com/despreston/go-craq/transport"
 )
 
 type Client struct {
-	cRPC, nRPC *rpc.Client // connections to coordinator and a node
+	cRPC, nRPC transport.Client // connections to coordinator and a node
 }
 
-func New(cdr, node string) (*Client, error) {
+func New(cdr, node string, t transport.Transporter) (*Client, error) {
 	c := &Client{}
 
-	cRPC, err := rpc.DialHTTP("tcp", cdr)
+	cRPC, err := t.Connect(cdr)
 	if err != nil {
 		return c, err
 	}
 
-	nRPC, err := rpc.DialHTTP("tcp", node)
+	nRPC, err := t.Connect(node)
 	if err != nil {
 		return c, err
 	}

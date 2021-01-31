@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/despreston/go-craq/client"
+	"github.com/despreston/go-craq/transport"
 )
 
 func main() {
@@ -28,7 +29,7 @@ func main() {
 
 	fmt.Printf("cmd: %s, coordinator: %s\n", cmd, cdr)
 
-	c, err := client.New(cdr, node)
+	c, err := client.New(cdr, node, &transport.NetRPC{})
 	if err != nil {
 		log.Fatal(err)
 	}
