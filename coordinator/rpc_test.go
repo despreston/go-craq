@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -8,30 +9,40 @@ import (
 	"github.com/despreston/go-craq/transport"
 )
 
-type FakeTransportClient struct{}
+type fakeTransportClient struct {
+	errorOnPing bool
+}
 
-func (ftc *FakeTransportClient) Call(
+func (ftc *fakeTransportClient) Call(
 	method string,
 	args, reply interface{},
 ) error {
+	if ftc.errorOnPing && method == "RPC.Ping" {
+		return errors.New("oops")
+	}
 	return nil
 }
 
-func (ftc *FakeTransportClient) Close() error { return nil }
+func (ftc *fakeTransportClient) Close() error { return nil }
 
-type FakeTransport struct {
-	connected bool
+type fakeTransport struct {
+	connected      bool
+	errorOnConnect bool
 }
 
-func (ft *FakeTransport) Connect(path string) (transport.Client, error) {
+func (ft *fakeTransport) Connect(path string) (transport.Client, error) {
+	if ft.errorOnConnect {
+		ft.connected = false
+		return &fakeTransportClient{}, errors.New("broke")
+	}
 	ft.connected = true
-	return &FakeTransportClient{}, nil
+	return &fakeTransportClient{}, nil
 }
 
 func TestAddNode(t *testing.T) {
 	reply := &craqrpc.NodeMeta{}
 	args := &craqrpc.AddNodeArgs{Path: "123"}
-	cdr := &Coordinator{Transport: &FakeTransport{}}
+	cdr := &Coordinator{Transport: &fakeTransport{}}
 	rpc := RPC{c: cdr}
 
 	if err := rpc.AddNode(args, reply); err != nil {
@@ -52,7 +63,7 @@ func TestAddNodeSecond(t *testing.T) {
 	node := fakeNode{path: "456"}
 
 	cdr := &Coordinator{
-		Transport: &FakeTransport{},
+		Transport: &fakeTransport{},
 		replicas:  []nodeDispatcher{&node},
 		tail:      &node,
 	}
