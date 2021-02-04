@@ -119,8 +119,7 @@ func (n *Node) ConnectToCoordinator() error {
 
 	// Announce self to the Coordinatorr
 	reply := craqrpc.NodeMeta{}
-	args := craqrpc.AddNodeArgs{Path: n.Path}
-	if err := cdrClient.Call("RPC.AddNode", args, &reply); err != nil {
+	if err := cdrClient.Call("RPC.AddNode", n.Path, &reply); err != nil {
 		return err
 	}
 

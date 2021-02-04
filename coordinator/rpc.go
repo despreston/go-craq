@@ -21,26 +21,26 @@ type RPC struct {
 // the path to the previous Node in the chain. The node is responsible for
 // announcing itself to the previous Node in the chain.
 func (cRPC *RPC) AddNode(
-	args *craqrpc.AddNodeArgs,
+	path string,
 	reply *craqrpc.NodeMeta,
 ) error {
-	log.Printf("received AddNode from %s\n", args.Path)
+	log.Printf("received AddNode from %s\n", path)
 
 	n := &node{
 		last:      time.Now(),
-		path:      args.Path,
+		path:      path,
 		transport: cRPC.c.Transport,
 	}
 
 	if err := n.Connect(); err != nil {
-		log.Printf("failed to connect to node %s\n", args.Path)
+		log.Printf("failed to connect to node %s\n", path)
 		return err
 	}
 
 	cRPC.c.replicas = append(cRPC.c.replicas, n)
 	cRPC.c.tail = n
 	reply.IsTail = true
-	reply.Tail = args.Path
+	reply.Tail = path
 
 	if len(cRPC.c.replicas) == 1 {
 		cRPC.c.head = n

@@ -18,11 +18,6 @@ type AckResponse struct {
 	Ok bool
 }
 
-// AddNodeArgs are arguments for the AddNode RPC comamnd.
-type AddNodeArgs struct {
-	Path string // address for rpc.Client connection
-}
-
 // NodeMeta is for sending info to a node to let the node know where in the
 // chain it sits. The node will update itself when receiving this message.
 type NodeMeta struct {
@@ -66,21 +61,10 @@ type CommitArgs struct {
 	Version uint64
 }
 
-// ReadArgs are for reading from a node's storage.
-type ReadArgs struct {
-	Key string
-}
-
 // ReadResponse is the response a node will give when reading from the store.
 type ReadResponse struct {
 	Key   string
 	Value []byte
-}
-
-// VersionArgs is the messaged used by nodes to request the latest committed
-// version from the tail node.
-type VersionArgs struct {
-	Key string
 }
 
 // VersionResponse is the tail node's response to a node asking what the latest

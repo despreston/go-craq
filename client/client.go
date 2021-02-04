@@ -46,9 +46,7 @@ func (c *Client) Write(key string, val []byte) error {
 
 func (c *Client) Read(key string) error {
 	reply := craqrpc.ReadResponse{}
-	args := craqrpc.ReadArgs{Key: key}
-
-	err := c.nRPC.Call("RPC.Read", &args, &reply)
+	err := c.nRPC.Call("RPC.Read", key, &reply)
 	if err != nil {
 		return nil
 	}

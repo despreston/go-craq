@@ -41,11 +41,10 @@ func (ft *fakeTransport) Connect(path string) (transport.Client, error) {
 
 func TestAddNode(t *testing.T) {
 	reply := &craqrpc.NodeMeta{}
-	args := &craqrpc.AddNodeArgs{Path: "123"}
 	cdr := &Coordinator{Transport: &fakeTransport{}}
 	rpc := RPC{c: cdr}
 
-	if err := rpc.AddNode(args, reply); err != nil {
+	if err := rpc.AddNode("123", reply); err != nil {
 		t.Fatalf("unexpected error\n  want: %#v\n  got: %#v", nil, err)
 	}
 
@@ -71,8 +70,7 @@ func TestAddNodeSecond(t *testing.T) {
 	rpc := RPC{c: cdr}
 
 	reply := &craqrpc.NodeMeta{}
-	args := &craqrpc.AddNodeArgs{Path: "123"}
-	if err := rpc.AddNode(args, reply); err != nil {
+	if err := rpc.AddNode("123", reply); err != nil {
 		t.Fatalf("unexpected error\n  want: %#v\n  got: %#v", nil, err)
 	}
 
