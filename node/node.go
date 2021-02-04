@@ -37,6 +37,7 @@ type Item struct {
 	Version   uint64
 	Committed bool
 	Value     []byte
+	Key       string
 }
 
 type storer interface {
@@ -44,6 +45,10 @@ type storer interface {
 	Write(string, []byte, uint64) error
 	Commit(string, uint64) error
 	ReadVersion(string, uint64) (*Item, error)
+	AllNewerCommitted(map[string][]uint64) ([]*Item, error)
+	AllNewerDirty(map[string][]uint64) ([]*Item, error)
+	AllDirty() ([]*Item, error)
+	AllCommitted() ([]*Item, error)
 }
 
 // Opts is for passing options to the Node constructor.
@@ -71,6 +76,7 @@ type Node struct {
 // New creates a new Node.
 func New(opts Opts) *Node {
 	return &Node{
+		latest:    make(map[string]uint64),
 		neighbors: make(map[craqrpc.NeighborPos]neighbor, 3),
 		CdrPath:   opts.CdrPath,
 		Path:      opts.Path,
@@ -123,27 +129,26 @@ func (n *Node) ConnectToCoordinator() error {
 		return err
 	}
 
-	log.Printf("reply %+v\n", reply)
 	n.isHead = reply.IsHead
 	n.isTail = reply.IsTail
 	n.neighbors[craqrpc.NeighborPosTail] = neighbor{path: reply.Tail}
 
+	// Connect to tail
 	if !reply.IsTail {
-		tailClient, err := n.transport.Connect(reply.Tail)
-		if err != nil {
+		if err := n.connectToNode(reply.Tail, craqrpc.NeighborPosTail); err != nil {
 			log.Println("Error connecting to the tail during ConnectToCoordinator")
 			return err
 		}
-		tail := n.neighbors[craqrpc.NeighborPosTail]
-		tail.client = tailClient
-		log.Printf("Connected to the tail node %s", tail.path)
 	}
 
+	// Connect to predecessor
 	if reply.Prev != "" {
-		// If the neighbor is unreachable, swallow the error so this node doesn't
-		// also fail.
-		if err := n.connectToNode(reply.Prev, craqrpc.NeighborPosPrev); err == nil {
+		if err := n.connectToNode(reply.Prev, craqrpc.NeighborPosPrev); err != nil {
 			log.Printf("Failed to connect to node in ConnectToCoordinator. %v\n", err)
+			return err
+		}
+		if err := n.fullPropagate(); err != nil {
+			return err
 		}
 	} else if n.neighbors[craqrpc.NeighborPosPrev].path != "" {
 		// Close the connection to the previous predecessor.
@@ -151,6 +156,17 @@ func (n *Node) ConnectToCoordinator() error {
 	}
 
 	return nil
+}
+
+// send FwdPropagate and BackPropagate requests to new predecessor to get fully
+// caught up. Forward propagation should go first so that it has all the dirty
+// items needed before receiving backwards propagation response.
+func (n *Node) fullPropagate() error {
+	prevNeighbor := n.neighbors[craqrpc.NeighborPosPrev].client
+	if err := n.requestFwdPropagation(&prevNeighbor); err != nil {
+		return err
+	}
+	return n.requestBackPropagation(&prevNeighbor)
 }
 
 func (n *Node) connectToNode(path string, pos craqrpc.NeighborPos) error {
@@ -173,4 +189,83 @@ func (n *Node) connectToNode(path string, pos craqrpc.NeighborPos) error {
 	}
 
 	return nil
+}
+
+func (n *Node) writePropagated(reply *craqrpc.PropagateResponse) error {
+	// Save items from reply to store.
+	for key, forKey := range *reply {
+		for _, item := range forKey {
+			if err := n.store.Write(key, item.Value, item.Version); err != nil {
+				log.Printf("Failed to write item %+v to store: %#v\n", item, err)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (n *Node) commitPropagated(reply *craqrpc.PropagateResponse) error {
+	// Commit items from reply to store.
+	for key, forKey := range *reply {
+		for _, item := range forKey {
+			if err := n.store.Commit(key, item.Version); err != nil {
+				log.Printf("Failed to commit item %+v to store: %#v\n", item, err)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func propagateRequestFromItems(items []*Item) craqrpc.PropagateRequest {
+	req := craqrpc.PropagateRequest{}
+	for _, item := range items {
+		req[item.Key] = append(req[item.Key], item.Version)
+	}
+	return req
+}
+
+// requestFwdPropagation asks client to respond with all uncommitted (dirty)
+// items that this node either does not have or are newer than what this node
+// has.
+func (n *Node) requestFwdPropagation(client *transport.Client) error {
+	dirty, err := n.store.AllDirty()
+	if err != nil {
+		log.Printf("Failed to get all dirty items: %#v\n", err)
+		return err
+	}
+
+	reply := craqrpc.PropagateResponse{}
+	args := propagateRequestFromItems(dirty)
+	if err := (*client).Call("RPC.FwdPropagate", &args, &reply); err != nil {
+		log.Printf("Failed during forward propagation: %#v\n", err)
+		return err
+	}
+
+	return n.writePropagated(&reply)
+}
+
+// requestBackPropagation asks client to respond with all committed items that
+// this node either does not have or are newer than what this node has.
+func (n *Node) requestBackPropagation(client *transport.Client) error {
+	committed, err := n.store.AllCommitted()
+	if err != nil {
+		log.Printf("Failed to get all committed items: %#v\n", err)
+		return err
+	}
+
+	args := propagateRequestFromItems(committed)
+	reply := craqrpc.PropagateResponse{}
+	if err := (*client).Call("RPC.BackPropagate", &args, &reply); err != nil {
+		log.Printf("Failed during back propagation: %#v\n", err)
+		return err
+	}
+
+	return n.commitPropagated(&reply)
+}
+
+// resetNeighbor closes any open connection and resets the object.
+func resetNeighbor(n *neighbor) {
+	n.client.Close()
+	*n = neighbor{}
 }

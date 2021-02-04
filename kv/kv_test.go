@@ -162,7 +162,7 @@ func TestWrite(t *testing.T) {
 func TestCommit(t *testing.T) {
 	s := New()
 
-	want := "no item for key whatever so can't mark clean"
+	want := "no item for key whatever so can't commit"
 	if got := s.Commit("whatever", 1); got.Error() != want {
 		t.Fatalf("unexpected error\n  want: %#v\n  got: %#v", want, got)
 	}

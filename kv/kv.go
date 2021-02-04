@@ -82,6 +82,7 @@ func (s *Store) Write(key string, val []byte, version uint64) error {
 		Committed: false,
 		Value:     val,
 		Version:   version,
+		Key:       key,
 	}
 
 	s.items[key] = append(s.items[key], &item)
@@ -95,7 +96,7 @@ func (s *Store) Commit(key string, version uint64) error {
 
 	items, has := s.lookup(key)
 	if !has {
-		return fmt.Errorf("no item for key %s so can't mark clean", key)
+		return fmt.Errorf("no item for key %s so can't commit", key)
 	}
 
 	// Update the committed flag and find index in items where version is older
@@ -117,4 +118,86 @@ func (s *Store) Commit(key string, version uint64) error {
 
 	log.Printf("Marked version %d of key %s committed.\n", version, key)
 	return nil
+}
+
+// AllNewerCommitted returns all committed items who's key is not in keyVersions
+// or who's version is higher than the versions in keyVersions.
+func (s *Store) AllNewerCommitted(
+	keyVersions map[string][]uint64,
+) ([]*node.Item, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	newer := []*node.Item{}
+
+	for key, items := range s.items {
+		// Highest local version
+		local := items[len(items)-1]
+
+		given, has := keyVersions[key]
+		if !has || local.Committed && local.Version > given[0] {
+			newer = append(newer, local)
+		}
+	}
+
+	return newer, nil
+}
+
+// AllNewerDirty returns all uncommitted items who's key is not in keyVersions
+// or who's version is higher than the versions in keyVersions.
+func (s *Store) AllNewerDirty(
+	keyVersions map[string][]uint64,
+) ([]*node.Item, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	newer := []*node.Item{}
+
+	for key, items := range s.items {
+		// Highest local version
+		local := items[len(items)-1]
+
+		given, has := keyVersions[key]
+		if !has || !local.Committed && local.Version > given[0] {
+			newer = append(newer, local)
+		}
+	}
+
+	return newer, nil
+}
+
+// AllDirty returns all uncommitted items.
+func (s *Store) AllDirty() ([]*node.Item, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dirty := []*node.Item{}
+
+	for _, forKey := range s.items {
+		for _, item := range forKey {
+			if !item.Committed {
+				dirty = append(dirty, item)
+			}
+		}
+	}
+
+	return dirty, nil
+}
+
+// AllCommitted returns all committed items.
+func (s *Store) AllCommitted() ([]*node.Item, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	committed := []*node.Item{}
+
+	for _, forKey := range s.items {
+		for _, item := range forKey {
+			if item.Committed {
+				committed = append(committed, item)
+			}
+		}
+	}
+
+	return committed, nil
 }

@@ -13,6 +13,11 @@ const (
 	NeighborPosTail
 )
 
+type ValueVersion struct {
+	Value   []byte
+	Version uint64
+}
+
 // AckResponse is used to respond to RPC commands with a simple flag.
 type AckResponse struct {
 	Ok bool
@@ -73,3 +78,12 @@ type VersionResponse struct {
 	Key     string
 	Version uint64
 }
+
+// PropagateRequest is the request a node should send to the predecessor or
+// successor (depending on whether it's forward or backward propagation) to ask
+// for objects it needs in order to catch up with the rest of the chain.
+type PropagateRequest map[string][]uint64
+
+// PropagateResponse is the response a node should use in order to propagate
+// unseen objects to the predecessor or successor.
+type PropagateResponse map[string][]ValueVersion

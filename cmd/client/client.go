@@ -14,7 +14,7 @@ func main() {
 	var cdr, node string
 
 	flag.StringVar(&cdr, "c", "localhost:1234", "coordinator address")
-	flag.StringVar(&node, "n", "localhost:1235", "node address to read from")
+	flag.StringVar(&node, "n", "localhost:1236", "node address to read from")
 	flag.Parse()
 
 	if len(os.Args) < 2 {
