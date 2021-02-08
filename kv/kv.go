@@ -24,7 +24,7 @@ func New() *Store {
 }
 
 func (s *Store) lookup(key string) ([]*node.Item, bool) {
-	items, _ := s.items[key]
+	items := s.items[key]
 	if len(items) == 0 {
 		return nil, false
 	}
