@@ -67,10 +67,8 @@ func (nRPC *RPC) Update(
 	reply *craqrpc.AckResponse,
 ) error {
 	log.Printf("Received metadata update: %+v\n", args)
-
 	nRPC.n.mu.Lock()
 	defer nRPC.n.mu.Unlock()
-
 	nRPC.n.isHead = args.IsHead
 	nRPC.n.isTail = args.IsTail
 
@@ -92,8 +90,27 @@ func (nRPC *RPC) Update(
 		return err
 	}
 
-	// TODO: If this node is now the tail, commit all dirty versions, then forward
+	// If this node is now the tail, commit all dirty versions, then forward
 	// commits to predecessor.
+	if args.IsTail {
+		dirty, err := nRPC.n.store.AllDirty()
+		if err != nil {
+			log.Println("Error fetching all dirty items during node Update")
+			return err
+		}
+
+		for i := range dirty {
+			go func(item *Item) {
+				if err := nRPC.commitAndSend(item.Key, item.Version); err != nil {
+					log.Printf(
+						"Error during commit & send for item: %#v, error: %#v\n",
+						item,
+						err,
+					)
+				}
+			}(dirty[i])
+		}
+	}
 
 	reply.Ok = true
 	return nil
@@ -180,6 +197,8 @@ func (nRPC *RPC) Write(
 		return nil
 	}
 
+	// At this point it's assumed this node is the tail.
+
 	if err := nRPC.n.store.Commit(args.Key, args.Version); err != nil {
 		log.Printf("Failed to mark as committed in Write. %v\n", err)
 		return err
@@ -187,8 +206,24 @@ func (nRPC *RPC) Write(
 
 	// Start telling predecessors to mark this version committed.
 	nRPC.sendCommitToPrev(args.Key, args.Version)
-
 	reply.Ok = true
+	return nil
+}
+
+// commitAndSend commits an item to the store and sends a message to the
+// predecessor node to tell it to commit as well.
+func (nRPC *RPC) commitAndSend(key string, version uint64) error {
+	if err := nRPC.n.store.Commit(key, version); err != nil {
+		return err
+	}
+
+	nRPC.n.latest[key] = version
+
+	// if this node has a predecessor, send commit to previous node
+	if nRPC.n.neighbors[craqrpc.NeighborPosPrev].path != "" {
+		return nRPC.sendCommitToPrev(key, version)
+	}
+
 	return nil
 }
 
@@ -209,20 +244,9 @@ func (nRPC *RPC) sendCommitToPrev(key string, version uint64) error {
 // Commit marks an object as committed in storage.
 func (nRPC *RPC) Commit(
 	args *craqrpc.CommitArgs,
-	reply *craqrpc.AckResponse,
+	_ *craqrpc.AckResponse,
 ) error {
-	if err := nRPC.n.store.Commit(args.Key, args.Version); err != nil {
-		return err
-	}
-
-	nRPC.n.latest[args.Key] = args.Version
-
-	// if this node has a predecessor, send commit to previous node
-	if nRPC.n.neighbors[craqrpc.NeighborPosPrev].path != "" {
-		return nRPC.sendCommitToPrev(args.Key, args.Version)
-	}
-
-	return nil
+	return nRPC.commitAndSend(args.Key, args.Version)
 }
 
 // Read returns values from the store. If the store returns ErrDirtyItem, ask
