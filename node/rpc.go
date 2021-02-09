@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/despreston/go-craq/craqrpc"
+	"github.com/despreston/go-craq/store"
 )
 
 // RPC provides methods to be used as part of an RPC server for nodes. Other
@@ -100,7 +101,7 @@ func (nRPC *RPC) Update(
 		}
 
 		for i := range dirty {
-			go func(item *Item) {
+			go func(item *store.Item) {
 				if err := nRPC.commitAndSend(item.Key, item.Version); err != nil {
 					log.Printf(
 						"Error during commit & send for item: %#v, error: %#v\n",
@@ -256,9 +257,9 @@ func (nRPC *RPC) Read(key string, reply *craqrpc.ReadResponse) error {
 	item, err := nRPC.n.store.Read(key)
 
 	switch err {
-	case ErrNotFound:
+	case store.ErrNotFound:
 		return errors.New("key doesn't exist")
-	case ErrDirtyItem:
+	case store.ErrDirtyItem:
 		v, err := nRPC.getLatestVersion(key)
 
 		if err != nil {
@@ -333,7 +334,7 @@ func (nRPC *RPC) FwdPropagate(
 	return nil
 }
 
-func makePropagateResponse(items []*Item) craqrpc.PropagateResponse {
+func makePropagateResponse(items []*store.Item) craqrpc.PropagateResponse {
 	response := craqrpc.PropagateResponse{}
 
 	for _, item := range items {

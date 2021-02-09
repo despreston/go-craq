@@ -4,25 +4,15 @@ package node
 
 import (
 	"context"
-	"errors"
 	"log"
 	"net/http"
 	"net/rpc"
 	"sync"
 
 	"github.com/despreston/go-craq/craqrpc"
+	"github.com/despreston/go-craq/store"
 	"github.com/despreston/go-craq/transport"
 	"golang.org/x/sync/errgroup"
-)
-
-var (
-	// ErrNotFound should be returned by storage during a read operation if no
-	// item exists for the given key.
-	ErrNotFound = errors.New("that key does not exist")
-
-	// ErrDirtyItem should be returned by storage if the latest version for the
-	// key has not been committed yet.
-	ErrDirtyItem = errors.New("key has an uncommitted version")
 )
 
 // neighbor is another node in the chain
@@ -31,29 +21,9 @@ type neighbor struct {
 	path   string
 }
 
-// Item is an object in the Store. A key inside the store might have multiple
-// versions.
-type Item struct {
-	Version   uint64
-	Committed bool
-	Value     []byte
-	Key       string
-}
-
-type storer interface {
-	Read(string) (*Item, error)
-	Write(string, []byte, uint64) error
-	Commit(string, uint64) error
-	ReadVersion(string, uint64) (*Item, error)
-	AllNewerCommitted(map[string][]uint64) ([]*Item, error)
-	AllNewerDirty(map[string][]uint64) ([]*Item, error)
-	AllDirty() ([]*Item, error)
-	AllCommitted() ([]*Item, error)
-}
-
 // Opts is for passing options to the Node constructor.
 type Opts struct {
-	Store     storer
+	Store     store.Storer
 	Path      string
 	CdrPath   string
 	Transport transport.Transporter
@@ -63,11 +33,11 @@ type Opts struct {
 // responsible for storing data and handling reads/writes.
 type Node struct {
 	neighbors      map[craqrpc.NeighborPos]neighbor // other nodes in the chain
-	store          storer                           // storage layer
+	store          store.Storer                     // storage layer
 	latest         map[string]uint64                // latest version of a given key
 	CdrPath        string                           // host + port to coordinator
+	Path           string                           // host + port for rpc communication
 	cdr            transport.Client
-	Path           string // host + port for rpc communication
 	isHead, isTail bool
 	mu             sync.Mutex
 	transport      transport.Transporter
@@ -217,7 +187,7 @@ func (n *Node) commitPropagated(reply *craqrpc.PropagateResponse) error {
 	return nil
 }
 
-func propagateRequestFromItems(items []*Item) craqrpc.PropagateRequest {
+func propagateRequestFromItems(items []*store.Item) craqrpc.PropagateRequest {
 	req := craqrpc.PropagateRequest{}
 	for _, item := range items {
 		req[item.Key] = append(req[item.Key], item.Version)

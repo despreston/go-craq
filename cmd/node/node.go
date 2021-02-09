@@ -4,9 +4,9 @@ import (
 	"flag"
 	"log"
 
-	"github.com/despreston/go-craq/kv"
 	"github.com/despreston/go-craq/node"
-	"github.com/despreston/go-craq/transport"
+	"github.com/despreston/go-craq/store/kv"
+	"github.com/despreston/go-craq/transport/netrpc"
 )
 
 func main() {
@@ -18,7 +18,7 @@ func main() {
 		Path:      "127.0.0.1:" + port,
 		CdrPath:   "127.0.0.1:1234",
 		Store:     kv.New(),
-		Transport: &transport.NetRPC{},
+		Transport: &netrpc.Client{},
 	}
 
 	log.Fatal(node.New(opts).ListenAndServe())

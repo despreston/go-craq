@@ -1,4 +1,4 @@
-// kv package is an in-memory key/val storage. Not concurrency-safe.
+// kv package is an in-memory key/value database
 
 package kv
 
@@ -7,23 +7,23 @@ import (
 	"log"
 	"sync"
 
-	"github.com/despreston/go-craq/node"
+	"github.com/despreston/go-craq/store"
 )
 
-// Store is an in-memory key/value storage.
-type Store struct {
-	items map[string][]*node.Item
+// KV is an in-memory key/value storage.
+type KV struct {
+	items map[string][]*store.Item
 	mu    sync.Mutex
 }
 
 // New store
-func New() *Store {
-	return &Store{
-		items: make(map[string][]*node.Item),
+func New() *KV {
+	return &KV{
+		items: make(map[string][]*store.Item),
 	}
 }
 
-func (s *Store) lookup(key string) ([]*node.Item, bool) {
+func (s *KV) lookup(key string) ([]*store.Item, bool) {
 	items := s.items[key]
 	if len(items) == 0 {
 		return nil, false
@@ -32,36 +32,36 @@ func (s *Store) lookup(key string) ([]*node.Item, bool) {
 }
 
 // Read an item from the store by key. If there is an uncommitted (dirty)
-// version of the item in the store, it returns a node.ErrDirtyItem error. If no
-// item exists for that key it returns a node.ErrNotFound error.
-func (s *Store) Read(key string) (*node.Item, error) {
+// version of the item in the store, it returns a ErrDirtystore.Item error. If no
+// item exists for that key it returns a ErrNotFound error.
+func (s *KV) Read(key string) (*store.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	items, has := s.lookup(key)
 	if !has {
-		return nil, node.ErrNotFound
+		return nil, store.ErrNotFound
 	}
 
 	// If the object has multiple versions, it can be implicitly determined that
-	// the item's state is dirty, because the node.Item's history is purged
+	// the item's state is dirty, because the store.Item's history is purged
 	// when a version is marked clean.
 	if len(items) > 1 {
-		return nil, node.ErrDirtyItem
+		return nil, store.ErrDirtyItem
 	}
 
 	return items[0], nil
 }
 
 // ReadVersion finds an item for the given key with the matching version. If no
-// item is found for that version of key, node.ErrNotFound is returned
-func (s *Store) ReadVersion(key string, version uint64) (*node.Item, error) {
+// item is found for that version of key, ErrNotFound is returned
+func (s *KV) ReadVersion(key string, version uint64) (*store.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	items, has := s.lookup(key)
 	if !has {
-		return nil, node.ErrNotFound
+		return nil, store.ErrNotFound
 	}
 
 	for _, item := range items {
@@ -70,15 +70,15 @@ func (s *Store) ReadVersion(key string, version uint64) (*node.Item, error) {
 		}
 	}
 
-	return nil, node.ErrNotFound
+	return nil, store.ErrNotFound
 }
 
 // Write a new item to the store.
-func (s *Store) Write(key string, val []byte, version uint64) error {
+func (s *KV) Write(key string, val []byte, version uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	item := node.Item{
+	item := store.Item{
 		Committed: false,
 		Value:     val,
 		Version:   version,
@@ -90,7 +90,7 @@ func (s *Store) Write(key string, val []byte, version uint64) error {
 }
 
 // Commit a version for the given key.
-func (s *Store) Commit(key string, version uint64) error {
+func (s *KV) Commit(key string, version uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -122,13 +122,13 @@ func (s *Store) Commit(key string, version uint64) error {
 
 // AllNewerCommitted returns all committed items who's key is not in keyVersions
 // or who's version is higher than the versions in keyVersions.
-func (s *Store) AllNewerCommitted(
+func (s *KV) AllNewerCommitted(
 	keyVersions map[string][]uint64,
-) ([]*node.Item, error) {
+) ([]*store.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	newer := []*node.Item{}
+	newer := []*store.Item{}
 
 	for key, items := range s.items {
 		// Highest local version
@@ -145,13 +145,13 @@ func (s *Store) AllNewerCommitted(
 
 // AllNewerDirty returns all uncommitted items who's key is not in keyVersions
 // or who's version is higher than the versions in keyVersions.
-func (s *Store) AllNewerDirty(
+func (s *KV) AllNewerDirty(
 	keyVersions map[string][]uint64,
-) ([]*node.Item, error) {
+) ([]*store.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	newer := []*node.Item{}
+	newer := []*store.Item{}
 
 	for key, items := range s.items {
 		// Highest local version
@@ -167,11 +167,11 @@ func (s *Store) AllNewerDirty(
 }
 
 // AllDirty returns all uncommitted items.
-func (s *Store) AllDirty() ([]*node.Item, error) {
+func (s *KV) AllDirty() ([]*store.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	dirty := []*node.Item{}
+	dirty := []*store.Item{}
 
 	for _, forKey := range s.items {
 		for _, item := range forKey {
@@ -185,11 +185,11 @@ func (s *Store) AllDirty() ([]*node.Item, error) {
 }
 
 // AllCommitted returns all committed items.
-func (s *Store) AllCommitted() ([]*node.Item, error) {
+func (s *KV) AllCommitted() ([]*store.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	committed := []*node.Item{}
+	committed := []*store.Item{}
 
 	for _, forKey := range s.items {
 		for _, item := range forKey {

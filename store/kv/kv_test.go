@@ -4,23 +4,23 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/despreston/go-craq/node"
+	"github.com/despreston/go-craq/store"
 )
 
 func TestRead(t *testing.T) {
-	item := &node.Item{Value: []byte("yes")}
+	item := &store.Item{Value: []byte("yes")}
 
 	tests := []struct {
 		id   string
-		item *node.Item   // expected item
-		err  error        // expected error
-		key  string       // key to read
-		pre  func(*Store) // before test hook
+		item *store.Item // expected item
+		err  error       // expected error
+		key  string      // key to read
+		pre  func(*KV)   // before test hook
 	}{
 		{
 			id:   "not found",
 			item: nil,
-			err:  node.ErrNotFound,
+			err:  store.ErrNotFound,
 			key:  "nothing",
 		},
 		{
@@ -28,16 +28,16 @@ func TestRead(t *testing.T) {
 			item: item,
 			err:  nil,
 			key:  "hello",
-			pre: func(s *Store) {
+			pre: func(s *KV) {
 				s.items["hello"] = append(s.items["hello"], item)
 			},
 		},
 		{
 			id:   "dirty",
 			item: nil,
-			err:  node.ErrDirtyItem,
+			err:  store.ErrDirtyItem,
 			key:  "hello",
-			pre: func(s *Store) {
+			pre: func(s *KV) {
 				s.items["hello"] = append(s.items["hello"], item, item)
 			},
 		},
@@ -72,21 +72,21 @@ func TestRead(t *testing.T) {
 	}
 }
 
-func TestReadVersion(t *testing.T) {
-	item := &node.Item{Value: []byte("yes"), Version: 1}
+func TestKVReadVersion(t *testing.T) {
+	item := &store.Item{Value: []byte("yes"), Version: 1}
 
 	tests := []struct {
 		id      string
-		item    *node.Item   // expected item
-		err     error        // expected error
-		version uint64       // version to query
-		key     string       // key to read
-		pre     func(*Store) // before test hook
+		item    *store.Item // expected item
+		err     error       // expected error
+		version uint64      // version to query
+		key     string      // key to read
+		pre     func(*KV)   // before test hook
 	}{
 		{
 			id:   "key not found",
 			item: nil,
-			err:  node.ErrNotFound,
+			err:  store.ErrNotFound,
 			key:  "nothing",
 		},
 		{
@@ -95,17 +95,17 @@ func TestReadVersion(t *testing.T) {
 			err:     nil,
 			version: 1,
 			key:     "hello",
-			pre: func(s *Store) {
+			pre: func(s *KV) {
 				s.items["hello"] = append(s.items["hello"], item)
 			},
 		},
 		{
 			id:      "version not found",
 			item:    nil,
-			err:     node.ErrNotFound,
+			err:     store.ErrNotFound,
 			key:     "hello",
 			version: 2,
-			pre: func(s *Store) {
+			pre: func(s *KV) {
 				s.items["hello"] = append(s.items["hello"], item, item)
 			},
 		},
@@ -140,7 +140,7 @@ func TestReadVersion(t *testing.T) {
 	}
 }
 
-func TestWrite(t *testing.T) {
+func TestKVWrite(t *testing.T) {
 	s := New()
 	if err := s.Write("hello", []byte("world"), 1); err != nil {
 		t.Fatalf("unexpected error\n  want: %#v\n  got: %#v", nil, err)
@@ -148,7 +148,7 @@ func TestWrite(t *testing.T) {
 
 	got := s.items["hello"][0]
 
-	want := node.Item{
+	want := store.Item{
 		Committed: false,
 		Value:     []byte("world"),
 		Version:   1,
@@ -159,7 +159,7 @@ func TestWrite(t *testing.T) {
 	}
 }
 
-func TestCommit(t *testing.T) {
+func TestKVCommit(t *testing.T) {
 	s := New()
 
 	want := "no item for key whatever so can't commit"
@@ -169,8 +169,8 @@ func TestCommit(t *testing.T) {
 
 	s.items["hello"] = append(
 		s.items["hello"],
-		&node.Item{Committed: false, Version: 1},
-		&node.Item{Committed: false, Version: 2},
+		&store.Item{Committed: false, Version: 1},
+		&store.Item{Committed: false, Version: 2},
 	)
 
 	if err := s.Commit("hello", 2); err != nil {
