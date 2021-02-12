@@ -5,10 +5,16 @@ import (
 	"testing"
 
 	"github.com/despreston/go-craq/store"
+	"github.com/despreston/go-craq/store/storetest"
 )
+
+func TestStorer(t *testing.T) {
+	storetest.Test(t, func() store.Storer { return New() })
+}
 
 func TestRead(t *testing.T) {
 	item := &store.Item{Value: []byte("yes")}
+	committed := &store.Item{Value: []byte("a second"), Committed: true}
 
 	tests := []struct {
 		id   string
@@ -25,11 +31,11 @@ func TestRead(t *testing.T) {
 		},
 		{
 			id:   "correct item",
-			item: item,
+			item: committed,
 			err:  nil,
 			key:  "hello",
 			pre: func(s *KV) {
-				s.items["hello"] = append(s.items["hello"], item)
+				s.items["hello"] = append(s.items["hello"], committed)
 			},
 		},
 		{

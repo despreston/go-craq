@@ -32,8 +32,8 @@ func (s *KV) lookup(key string) ([]*store.Item, bool) {
 }
 
 // Read an item from the store by key. If there is an uncommitted (dirty)
-// version of the item in the store, it returns a ErrDirtystore.Item error. If no
-// item exists for that key it returns a ErrNotFound error.
+// version of the item in the store, it returns a ErrDirtystore.Item error. If
+// no item exists for that key it returns a ErrNotFound error.
 func (s *KV) Read(key string) (*store.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -43,10 +43,7 @@ func (s *KV) Read(key string) (*store.Item, error) {
 		return nil, store.ErrNotFound
 	}
 
-	// If the object has multiple versions, it can be implicitly determined that
-	// the item's state is dirty, because the store.Item's history is purged
-	// when a version is marked clean.
-	if len(items) > 1 {
+	if !items[len(items)-1].Committed {
 		return nil, store.ErrDirtyItem
 	}
 
@@ -130,12 +127,12 @@ func (s *KV) AllNewerCommitted(
 
 	newer := []*store.Item{}
 
-	for key, items := range s.items {
+	for key, itemsForKey := range s.items {
 		// Highest local version
-		local := items[len(items)-1]
+		local := itemsForKey[len(itemsForKey)-1]
 
 		given, has := keyVersions[key]
-		if !has || local.Committed && local.Version > given[0] {
+		if local.Committed && (!has || local.Version > given[0]) {
 			newer = append(newer, local)
 		}
 	}
@@ -158,7 +155,7 @@ func (s *KV) AllNewerDirty(
 		local := items[len(items)-1]
 
 		given, has := keyVersions[key]
-		if !has || !local.Committed && local.Version > given[0] {
+		if !local.Committed && (!has || local.Version > given[0]) {
 			newer = append(newer, local)
 		}
 	}
