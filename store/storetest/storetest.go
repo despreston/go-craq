@@ -1,4 +1,4 @@
-// storetest package is an suite of integration tests that can be used to test
+// storetest package is a suite of integration tests that can be used to test
 // store.Storer implementations.
 
 package storetest
