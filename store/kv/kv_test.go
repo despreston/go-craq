@@ -9,7 +9,9 @@ import (
 )
 
 func TestStorer(t *testing.T) {
-	storetest.Test(t, func() store.Storer { return New() })
+	storetest.Run(t, func(name string, test storetest.Test) {
+		test(t, New())
+	})
 }
 
 func TestRead(t *testing.T) {
