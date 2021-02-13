@@ -1,3 +1,5 @@
+// store package represents the storage layer used by the nodes in the chain.
+
 package store
 
 import (
@@ -18,7 +20,7 @@ var (
 
 type Storer interface {
 	// Read an item from the store by key. If there is an uncommitted (dirty)
-	// version of the item in the store, it returns a ErrDirtystore.Item error. If
+	// version of the item in the store, it returns a ErrDirtyItem error. If
 	// no item exists for that key it returns a ErrNotFound error.
 	Read(key string) (*Item, error)
 
