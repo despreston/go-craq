@@ -8,16 +8,24 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func Test(t *testing.T, s func() store.Storer) {
-	t.Run("BasicWriteCommitRead", func(t *testing.T) { testBasicWriteCommitRead(t, s()) })
-	t.Run("ReadUnknownKey", func(t *testing.T) { testReadUnknownKey(t, s()) })
-	t.Run("ReadDirty", func(t *testing.T) { testReadDirty(t, s()) })
-	t.Run("ReadVersion", func(t *testing.T) { testReadVersion(t, s()) })
-	t.Run("ReadVersionUnknownKey", func(t *testing.T) { testReadVersionUnknownKey(t, s()) })
-	t.Run("AllNewerCommitted", func(t *testing.T) { testAllNewerCommitted(t, s()) })
-	t.Run("AllNewerDirty", func(t *testing.T) { testAllNewerDirty(t, s()) })
-	t.Run("AllDirty", func(t *testing.T) { testAllDirty(t, s()) })
-	t.Run("AllCommitted", func(t *testing.T) { testAllCommitted(t, s()) })
+type Test func(*testing.T, store.Storer)
+
+var tests = map[string]Test{
+	"BasicWriteCommitRead":  testBasicWriteCommitRead,
+	"ReadUnknownKey":        testReadUnknownKey,
+	"ReadDirty":             testReadDirty,
+	"ReadVersion":           testReadVersion,
+	"ReadVersionUnknownKey": testReadVersionUnknownKey,
+	"AllNewerCommitted":     testAllNewerCommitted,
+	"AllNewerDirty":         testAllNewerDirty,
+	"AllDirty":              testAllDirty,
+	"AllCommitted":          testAllCommitted,
+}
+
+func Run(t *testing.T, wrapper func(string, Test)) {
+	for name, fn := range tests {
+		t.Run(name, func(t *testing.T) { wrapper(name, fn) })
+	}
 }
 
 func testBasicWriteCommitRead(t *testing.T, s store.Storer) {
@@ -143,16 +151,14 @@ func testAllNewerCommitted(t *testing.T, s store.Storer) {
 			Version: uint64(1),
 		},
 		{
-			Key:       "hello",
-			Value:     []byte("another"),
-			Version:   uint64(2),
-			Committed: true,
+			Key:     "hello",
+			Value:   []byte("another"),
+			Version: uint64(2),
 		},
 		{
-			Key:       "another",
-			Value:     []byte("some value"),
-			Version:   uint64(1),
-			Committed: true,
+			Key:     "another",
+			Value:   []byte("some value"),
+			Version: uint64(1),
 		},
 	}
 
@@ -160,12 +166,11 @@ func testAllNewerCommitted(t *testing.T, s store.Storer) {
 		s.Write(i.Key, i.Value, i.Version)
 	}
 
-	s.Commit("hello", items[1].Version)
-	s.Commit("another", items[2].Version)
+	s.Commit("hello", uint64(2))
+	items[1].Committed = true
 
 	in := map[string][]uint64{"hello": []uint64{0}}
 	got, err := s.AllNewerCommitted(in)
-
 	if err != nil {
 		t.Fatalf(
 			"unexpected error\n  want: %#v\n  got: %#v",
@@ -173,8 +178,23 @@ func testAllNewerCommitted(t *testing.T, s store.Storer) {
 			err,
 		)
 	}
+	if diff := cmp.Diff(items[1:2], got); diff != "" {
+		t.Errorf("AllNewerCommitted response mismatch (-want +got):\n%s", diff)
+	}
 
-	if diff := cmp.Diff(items[1:], got); diff != "" {
+	s.Commit("another", uint64(1))
+	items[2].Committed = true
+
+	in = map[string][]uint64{"hello": []uint64{2}}
+	got, err = s.AllNewerCommitted(in)
+	if err != nil {
+		t.Fatalf(
+			"unexpected error\n  want: %#v\n  got: %#v",
+			nil,
+			err,
+		)
+	}
+	if diff := cmp.Diff(items[2:], got); diff != "" {
 		t.Errorf("AllNewerCommitted response mismatch (-want +got):\n%s", diff)
 	}
 }
