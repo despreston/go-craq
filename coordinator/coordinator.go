@@ -86,9 +86,9 @@ func (cdr *Coordinator) pingReplicas() {
 	}
 }
 
-func findReplicaIndex(path string, replicas []nodeDispatcher) (int, bool) {
+func findReplicaIndex(address string, replicas []nodeDispatcher) (int, bool) {
 	for i, replica := range replicas {
-		if replica.Address() == path {
+		if replica.Address() == address {
 			return i, true
 		}
 	}
@@ -107,11 +107,11 @@ func (cdr *Coordinator) updateAll() {
 	wg.Wait()
 }
 
-type pathReader interface {
+type addressReader interface {
 	Address() string
 }
 
-func (cdr *Coordinator) removeNode(n pathReader) {
+func (cdr *Coordinator) removeNode(n addressReader) {
 	cdr.mu.Lock()
 	defer cdr.mu.Unlock()
 
@@ -157,7 +157,7 @@ func (cdr *Coordinator) removeNode(n pathReader) {
 }
 
 // updateNode sends the latest metadata to a Node to tell it whether it's head
-// or tail and what it's neighbors' paths are.
+// or tail and what it's neighbors' addresses are.
 func (cdr *Coordinator) updateNode(i int) error {
 	n := cdr.replicas[i]
 
@@ -171,11 +171,11 @@ func (cdr *Coordinator) updateNode(i int) error {
 
 	if len(cdr.replicas) > 1 {
 		if i > 0 {
-			// Not the first node, so add path to previous.
+			// Not the first node, so add address to previous.
 			args.Prev = cdr.replicas[i-1].Address()
 		}
 		if i+1 != len(cdr.replicas) {
-			// Not the last node, so add path to next.
+			// Not the last node, so add address to next.
 			args.Next = cdr.replicas[i+1].Address()
 		}
 	}

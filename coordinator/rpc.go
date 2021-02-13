@@ -18,29 +18,29 @@ type RPC struct {
 // AddNode should be called by Nodes to announce themselves to the Coordinator.
 // The coordinator then adds them to the end of the chain. The coordinator
 // replies with some flags to let the node know if they're head or tail, and
-// the path to the previous Node in the chain. The node is responsible for
+// the address to the previous Node in the chain. The node is responsible for
 // announcing itself to the previous Node in the chain.
 func (cRPC *RPC) AddNode(
-	path string,
+	address string,
 	reply *craqrpc.NodeMeta,
 ) error {
-	log.Printf("received AddNode from %s\n", path)
+	log.Printf("received AddNode from %s\n", address)
 
 	n := &node{
 		last:      time.Now(),
-		path:      path,
+		address:   address,
 		transport: cRPC.c.Transport,
 	}
 
 	if err := n.Connect(); err != nil {
-		log.Printf("failed to connect to node %s\n", path)
+		log.Printf("failed to connect to node %s\n", address)
 		return err
 	}
 
 	cRPC.c.replicas = append(cRPC.c.replicas, n)
 	cRPC.c.tail = n
 	reply.IsTail = true
-	reply.Tail = path
+	reply.Tail = address
 
 	if len(cRPC.c.replicas) == 1 {
 		cRPC.c.head = n

@@ -12,11 +12,11 @@ type node struct {
 	client    transport.Client
 	connected bool
 	last      time.Time // last successful ping
-	path      string    // host and port
+	address   string    // host and port
 }
 
 func (n *node) Connect() error {
-	client, err := n.transport.Connect(n.path)
+	client, err := n.transport.Connect(n.address)
 	if err != nil {
 		n.connected = false
 		return err
@@ -46,5 +46,5 @@ func (n *node) ClientWrite(
 	return &reply, err
 }
 
-func (n node) Address() string   { return n.path }
+func (n node) Address() string   { return n.address }
 func (n node) IsConnected() bool { return n.connected }
