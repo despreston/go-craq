@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/boltdb/bolt"
 	"github.com/despreston/go-craq/store"
+	bolt "go.etcd.io/bbolt"
 )
 
 type Bolt struct {
