@@ -46,7 +46,7 @@ func (cRPC *RPC) AddNode(
 		cRPC.c.head = n
 		reply.IsHead = true
 	} else {
-		reply.Prev = cRPC.c.replicas[len(cRPC.c.replicas)-2].Path()
+		reply.Prev = cRPC.c.replicas[len(cRPC.c.replicas)-2].Address()
 	}
 
 	// Because the tail node changed, all the other nodes need to be updated to

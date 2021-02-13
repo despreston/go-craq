@@ -1,3 +1,6 @@
+// storetest package is an suite of integration tests that can be used to test
+// store.Storer implementations.
+
 package storetest
 
 import (
@@ -8,6 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+// Test function
 type Test func(*testing.T, store.Storer)
 
 var tests = map[string]Test{
@@ -22,6 +26,7 @@ var tests = map[string]Test{
 	"AllCommitted":          testAllCommitted,
 }
 
+// Run will invoke all tests.
 func Run(t *testing.T, wrapper func(string, Test)) {
 	for name, fn := range tests {
 		t.Run(name, func(t *testing.T) { wrapper(name, fn) })

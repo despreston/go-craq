@@ -23,35 +23,45 @@ type neighbor struct {
 
 // Opts is for passing options to the Node constructor.
 type Opts struct {
-	Store     store.Storer
-	Path      string
-	CdrPath   string
+	// Storage layer to use
+	Store store.Storer
+	// Local listening address
+	Address string
+	// Address to advertise to other nodes and coordinator.
+	PubAddress string
+	// Address of coordinator
+	CdrAddress string
+	// Transport layer to use for communication with nodes and coordinator
 	Transport transport.Transporter
 }
 
 // Node is what the white paper refers to as a node. This is the client that is
 // responsible for storing data and handling reads/writes.
 type Node struct {
-	neighbors      map[craqrpc.NeighborPos]neighbor // other nodes in the chain
-	store          store.Storer                     // storage layer
-	latest         map[string]uint64                // latest version of a given key
-	CdrPath        string                           // host + port to coordinator
-	Path           string                           // host + port for rpc communication
-	cdr            transport.Client
-	isHead, isTail bool
-	mu             sync.Mutex
-	transport      transport.Transporter
+	// Other nodes in the chain
+	neighbors map[craqrpc.NeighborPos]neighbor
+	// Storage layer
+	store store.Storer
+	// Latest version of a given key
+	latest map[string]uint64
+
+	cdrAddress, address, pubAddr string
+	cdr                          transport.Client
+	isHead, isTail               bool
+	mu                           sync.Mutex
+	transport                    transport.Transporter
 }
 
 // New creates a new Node.
 func New(opts Opts) *Node {
 	return &Node{
-		latest:    make(map[string]uint64),
-		neighbors: make(map[craqrpc.NeighborPos]neighbor, 3),
-		CdrPath:   opts.CdrPath,
-		Path:      opts.Path,
-		store:     opts.Store,
-		transport: opts.Transport,
+		latest:     make(map[string]uint64),
+		neighbors:  make(map[craqrpc.NeighborPos]neighbor, 3),
+		cdrAddress: opts.CdrAddress,
+		address:    opts.Address,
+		store:      opts.Store,
+		transport:  opts.Transport,
+		pubAddr:    opts.PubAddress,
 	}
 }
 
@@ -62,7 +72,7 @@ func (n *Node) ListenAndServe() error {
 	rpc.HandleHTTP()
 
 	errg := errgroup.Group{}
-	server := &http.Server{Addr: n.Path}
+	server := &http.Server{Addr: n.address}
 
 	errg.Go(server.ListenAndServe)
 
@@ -84,18 +94,18 @@ func (n *Node) ListenAndServe() error {
 // chain and the path to the tail node. The Node announces itself to the
 // neighbor using the path given by the coordinator.
 func (n *Node) ConnectToCoordinator() error {
-	cdrClient, err := n.transport.Connect(n.CdrPath)
+	cdrClient, err := n.transport.Connect(n.cdrAddress)
 	if err != nil {
 		log.Println("Error connecting to the coordinator")
 		return err
 	}
 
-	log.Printf("Connected to coordinator at %s\n", n.CdrPath)
+	log.Printf("Connected to coordinator at %s\n", n.cdrAddress)
 	n.cdr = cdrClient
 
 	// Announce self to the Coordinatorr
 	reply := craqrpc.NodeMeta{}
-	if err := cdrClient.Call("RPC.AddNode", n.Path, &reply); err != nil {
+	if err := cdrClient.Call("RPC.AddNode", n.pubAddr, &reply); err != nil {
 		return err
 	}
 

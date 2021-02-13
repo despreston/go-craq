@@ -46,5 +46,5 @@ func (n *node) ClientWrite(
 	return &reply, err
 }
 
-func (n node) Path() string      { return n.path }
+func (n node) Address() string   { return n.path }
 func (n node) IsConnected() bool { return n.connected }

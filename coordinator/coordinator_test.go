@@ -14,7 +14,7 @@ type fakeNode struct {
 }
 
 func (fakeNode) Connect() error      { return nil }
-func (n fakeNode) Path() string      { return n.path }
+func (n fakeNode) Address() string   { return n.path }
 func (n fakeNode) IsConnected() bool { return n.connected }
 
 func (fakeNode) Ping() (*craqrpc.AckResponse, error) {

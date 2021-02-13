@@ -27,7 +27,7 @@ const (
 
 type nodeDispatcher interface {
 	Connect() error
-	Path() string
+	Address() string
 	Ping() (*craqrpc.AckResponse, error)
 	Update(*craqrpc.NodeMeta) (*craqrpc.AckResponse, error)
 	ClientWrite(*craqrpc.ClientWriteArgs) (*craqrpc.AckResponse, error)
@@ -36,12 +36,14 @@ type nodeDispatcher interface {
 
 // Coordinator is responsible for tracking the Nodes in the chain.
 type Coordinator struct {
-	Path      string
+	// Local listening address
+	Address string
+	// Transport layer to use for communication with nodes
+	Transport transport.Transporter
 	head      nodeDispatcher
 	tail      nodeDispatcher
 	mu        sync.Mutex
 	replicas  []nodeDispatcher
-	Transport transport.Transporter
 }
 
 // ListenAndServe registers RPC methods, starts the RPC server, and begins
@@ -51,8 +53,8 @@ func (cdr *Coordinator) ListenAndServe() error {
 	rpc.Register(cRPC)
 	rpc.HandleHTTP()
 	go cdr.pingReplicas()
-	log.Printf("listening at %s\n", cdr.Path)
-	return http.ListenAndServe(cdr.Path, nil)
+	log.Printf("listening at %s\n", cdr.Address)
+	return http.ListenAndServe(cdr.Address, nil)
 }
 
 // Ping each node. If the response is !Ok or the pingTimeout is reached, remove
@@ -86,7 +88,7 @@ func (cdr *Coordinator) pingReplicas() {
 
 func findReplicaIndex(path string, replicas []nodeDispatcher) (int, bool) {
 	for i, replica := range replicas {
-		if replica.Path() == path {
+		if replica.Address() == path {
 			return i, true
 		}
 	}
@@ -106,21 +108,21 @@ func (cdr *Coordinator) updateAll() {
 }
 
 type pathReader interface {
-	Path() string
+	Address() string
 }
 
 func (cdr *Coordinator) removeNode(n pathReader) {
 	cdr.mu.Lock()
 	defer cdr.mu.Unlock()
 
-	idx, found := findReplicaIndex(n.Path(), cdr.replicas)
+	idx, found := findReplicaIndex(n.Address(), cdr.replicas)
 	if !found {
 		return
 	}
 
 	wasTail := idx == len(cdr.replicas)-1
 	cdr.replicas = append(cdr.replicas[:idx], cdr.replicas[idx+1:]...)
-	log.Printf("removed node %s", n.Path())
+	log.Printf("removed node %s", n.Address())
 
 	if wasTail {
 		cdr.tail = nil
@@ -159,22 +161,22 @@ func (cdr *Coordinator) removeNode(n pathReader) {
 func (cdr *Coordinator) updateNode(i int) error {
 	n := cdr.replicas[i]
 
-	log.Printf("Sending metadata to %s.\n", n.Path())
+	log.Printf("Sending metadata to %s.\n", n.Address())
 
 	var args craqrpc.NodeMeta
 
 	args.IsHead = i == 0
 	args.IsTail = len(cdr.replicas) == i+1
-	args.Tail = cdr.replicas[len(cdr.replicas)-1].Path()
+	args.Tail = cdr.replicas[len(cdr.replicas)-1].Address()
 
 	if len(cdr.replicas) > 1 {
 		if i > 0 {
 			// Not the first node, so add path to previous.
-			args.Prev = cdr.replicas[i-1].Path()
+			args.Prev = cdr.replicas[i-1].Address()
 		}
 		if i+1 != len(cdr.replicas) {
 			// Not the last node, so add path to next.
-			args.Next = cdr.replicas[i+1].Path()
+			args.Next = cdr.replicas[i+1].Address()
 		}
 	}
 
