@@ -21,18 +21,20 @@ func (nRPC *RPC) Ping(_ *craqrpc.PingArgs, r *craqrpc.AckResponse) error {
 	return nil
 }
 
-func (nRPC *RPC) connectToPredecessor(path string) error {
+func (nRPC *RPC) connectToPredecessor(address string) error {
 	prev := nRPC.n.neighbors[craqrpc.NeighborPosPrev]
 
-	if prev.path == path {
+	if prev.address == address {
+		log.Println("New predecessor same address as last one, keeping conn.")
 		return nil
-	} else if path == "" {
-		resetNeighbor(&prev)
+	} else if address == "" {
+		log.Println("Resetting predecessor")
+		nRPC.n.resetNeighbor(craqrpc.NeighborPosPrev)
 		return nil
 	}
 
-	log.Printf("connecting to new predecessor %s\n", path)
-	if err := nRPC.n.connectToNode(path, craqrpc.NeighborPosPrev); err != nil {
+	log.Printf("connecting to new predecessor %s\n", address)
+	if err := nRPC.n.connectToNode(address, craqrpc.NeighborPosPrev); err != nil {
 		return err
 	}
 
@@ -40,18 +42,20 @@ func (nRPC *RPC) connectToPredecessor(path string) error {
 	return nRPC.n.requestFwdPropagation(&prevC)
 }
 
-func (nRPC *RPC) connectToSuccessor(path string) error {
+func (nRPC *RPC) connectToSuccessor(address string) error {
 	next := nRPC.n.neighbors[craqrpc.NeighborPosNext]
 
-	if next.path == path {
+	if next.address == address {
+		log.Println("New successor same address as last one, keeping conn.")
 		return nil
-	} else if path == "" {
-		resetNeighbor(&next)
+	} else if address == "" {
+		log.Println("Resetting successor")
+		nRPC.n.resetNeighbor(craqrpc.NeighborPosNext)
 		return nil
 	}
 
-	log.Printf("connecting to new successor %s\n", path)
-	if err := nRPC.n.connectToNode(path, craqrpc.NeighborPosNext); err != nil {
+	log.Printf("connecting to new successor %s\n", address)
+	if err := nRPC.n.connectToNode(address, craqrpc.NeighborPosNext); err != nil {
 		return err
 	}
 
@@ -73,14 +77,13 @@ func (nRPC *RPC) Update(
 	nRPC.n.isHead = args.IsHead
 	nRPC.n.isTail = args.IsTail
 
-	// connect to the predecessor if path is different
 	if err := nRPC.connectToPredecessor(args.Prev); err != nil {
 		return err
 	}
 
-	// connect to tail if path is different
+	// connect to tail if address is different
 	tail := nRPC.n.neighbors[craqrpc.NeighborPosTail]
-	if !args.IsTail && tail.path != args.Tail && args.Tail != "" {
+	if !args.IsTail && tail.address != args.Tail && args.Tail != "" {
 		err := nRPC.n.connectToNode(args.Tail, craqrpc.NeighborPosTail)
 		if err != nil {
 			return err
@@ -135,7 +138,7 @@ func (nRPC *RPC) ClientWrite(
 		return err
 	}
 
-	log.Printf("Created version %d of key %s\n", version, args.Key)
+	log.Printf("Node RPC ClientWrite() created version %d of key %s\n", version, args.Key)
 
 	// Forward the new object to the successor node.
 
@@ -143,7 +146,7 @@ func (nRPC *RPC) ClientWrite(
 
 	// If there's no successor, it means this is the only node in the chain, so
 	// mark the item as committed and return early.
-	if next.path == "" {
+	if next.address == "" {
 		log.Println("No successor")
 		if err := nRPC.n.store.Commit(args.Key, version); err != nil {
 			return err
@@ -176,7 +179,7 @@ func (nRPC *RPC) Write(
 	args *craqrpc.WriteArgs,
 	reply *craqrpc.AckResponse,
 ) error {
-	log.Printf("Writing key %s version %d to store\n", args.Key, args.Version)
+	log.Printf("Node RPC Write() %s version %d to store\n", args.Key, args.Version)
 
 	if err := nRPC.n.store.Write(args.Key, args.Value, args.Version); err != nil {
 		log.Printf("Failed to write. %v\n", err)
@@ -221,7 +224,7 @@ func (nRPC *RPC) commitAndSend(key string, version uint64) error {
 	nRPC.n.latest[key] = version
 
 	// if this node has a predecessor, send commit to previous node
-	if nRPC.n.neighbors[craqrpc.NeighborPosPrev].path != "" {
+	if nRPC.n.neighbors[craqrpc.NeighborPosPrev].address != "" {
 		return nRPC.sendCommitToPrev(key, version)
 	}
 

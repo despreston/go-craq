@@ -17,8 +17,8 @@ import (
 
 // neighbor is another node in the chain
 type neighbor struct {
-	client transport.Client
-	path   string
+	client  transport.Client
+	address string
 }
 
 // Opts is for passing options to the Node constructor.
@@ -90,9 +90,9 @@ func (n *Node) ListenAndServe() error {
 
 // ConnectToCoordinator let's the Node announce itself to the chain coordinator
 // to be added to the chain. The coordinator responds with a message to tell the
-// Node if it's the head or tail, and with the path of the previous node in the
-// chain and the path to the tail node. The Node announces itself to the
-// neighbor using the path given by the coordinator.
+// Node if it's the head or tail, and with the address of the previous node in the
+// chain and the address to the tail node. The Node announces itself to the
+// neighbor using the address given by the coordinator.
 func (n *Node) ConnectToCoordinator() error {
 	cdrClient, err := n.transport.Connect(n.cdrAddress)
 	if err != nil {
@@ -111,7 +111,7 @@ func (n *Node) ConnectToCoordinator() error {
 
 	n.isHead = reply.IsHead
 	n.isTail = reply.IsTail
-	n.neighbors[craqrpc.NeighborPosTail] = neighbor{path: reply.Tail}
+	n.neighbors[craqrpc.NeighborPosTail] = neighbor{address: reply.Tail}
 
 	// Connect to tail
 	if !reply.IsTail {
@@ -130,7 +130,7 @@ func (n *Node) ConnectToCoordinator() error {
 		if err := n.fullPropagate(); err != nil {
 			return err
 		}
-	} else if n.neighbors[craqrpc.NeighborPosPrev].path != "" {
+	} else if n.neighbors[craqrpc.NeighborPosPrev].address != "" {
 		// Close the connection to the previous predecessor.
 		n.neighbors[craqrpc.NeighborPosPrev].client.Close()
 	}
@@ -149,13 +149,13 @@ func (n *Node) fullPropagate() error {
 	return n.requestBackPropagation(&prevNeighbor)
 }
 
-func (n *Node) connectToNode(path string, pos craqrpc.NeighborPos) error {
-	client, err := n.transport.Connect(path)
+func (n *Node) connectToNode(address string, pos craqrpc.NeighborPos) error {
+	client, err := n.transport.Connect(address)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("connected to %s\n", path)
+	log.Printf("connected to %s\n", address)
 
 	// Disconnect from current neighbor if there's one connected.
 	nbr := n.neighbors[pos]
@@ -164,8 +164,8 @@ func (n *Node) connectToNode(path string, pos craqrpc.NeighborPos) error {
 	}
 
 	n.neighbors[pos] = neighbor{
-		client: client,
-		path:   path,
+		client:  client,
+		address: address,
 	}
 
 	return nil
@@ -244,8 +244,8 @@ func (n *Node) requestBackPropagation(client *transport.Client) error {
 	return n.commitPropagated(&reply)
 }
 
-// resetNeighbor closes any open connection and resets the object.
-func resetNeighbor(n *neighbor) {
-	n.client.Close()
-	*n = neighbor{}
+// resetNeighbor closes any open connection and resets the neighbor.
+func (n *Node) resetNeighbor(pos craqrpc.NeighborPos) {
+	n.neighbors[pos].client.Close()
+	n.neighbors[pos] = neighbor{}
 }
