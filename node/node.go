@@ -113,14 +113,6 @@ func (n *Node) ConnectToCoordinator() error {
 	n.isTail = reply.IsTail
 	n.neighbors[craqrpc.NeighborPosTail] = neighbor{address: reply.Tail}
 
-	// Connect to tail
-	if !reply.IsTail {
-		if err := n.connectToNode(reply.Tail, craqrpc.NeighborPosTail); err != nil {
-			log.Println("Error connecting to the tail during ConnectToCoordinator")
-			return err
-		}
-	}
-
 	// Connect to predecessor
 	if reply.Prev != "" {
 		if err := n.connectToNode(reply.Prev, craqrpc.NeighborPosPrev); err != nil {
