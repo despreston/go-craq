@@ -10,51 +10,42 @@
 package coordinator
 
 import (
+	"errors"
 	"log"
-	"net/http"
-	"net/rpc"
 	"sync"
 	"time"
 
-	"github.com/despreston/go-craq/craqrpc"
 	"github.com/despreston/go-craq/transport"
 )
 
 const (
 	pingTimeout  = 5 * time.Second
-	pingInterval = 3 * time.Second
+	pingInterval = 1 * time.Second
 )
 
-type nodeDispatcher interface {
-	Connect() error
-	Address() string
-	Ping() (*craqrpc.AckResponse, error)
-	Update(*craqrpc.NodeMeta) (*craqrpc.AckResponse, error)
-	ClientWrite(*craqrpc.ClientWriteArgs) (*craqrpc.AckResponse, error)
-	IsConnected() bool
-}
+var ErrEmptyChain = errors.New("no nodes in the chain")
 
 // Coordinator is responsible for tracking the Nodes in the chain.
 type Coordinator struct {
 	// Local listening address
-	Address string
-	// Transport layer to use for communication with nodes
-	Transport transport.Transporter
-	head      nodeDispatcher
-	tail      nodeDispatcher
-	mu        sync.Mutex
-	replicas  []nodeDispatcher
+	Address    string
+	Transport  transport.NodeClientFactory
+	head, tail *node
+	mu         sync.Mutex
+	replicas   []*node
+	// For testing, to know when all UpdateNode calls are finished.
+	Updates *sync.WaitGroup
 }
 
-// ListenAndServe registers RPC methods, starts the RPC server, and begins
-// pinging all connected nodes.
-func (cdr *Coordinator) ListenAndServe() error {
-	cRPC := &RPC{c: cdr}
-	rpc.Register(cRPC)
-	rpc.HandleHTTP()
-	go cdr.pingReplicas()
-	log.Printf("listening at %s\n", cdr.Address)
-	return http.ListenAndServe(cdr.Address, nil)
+func New(addr string) *Coordinator {
+	return &Coordinator{
+		Updates: &sync.WaitGroup{},
+		Address: addr,
+	}
+}
+
+func (cdr *Coordinator) Start() {
+	cdr.pingReplicas()
 }
 
 // Ping each node. If the response is !Ok or the pingTimeout is reached, remove
@@ -64,12 +55,12 @@ func (cdr *Coordinator) pingReplicas() {
 	log.Println("starting pinging")
 	for {
 		for _, n := range cdr.replicas {
-			go func(n nodeDispatcher) {
+			go func(n *node) {
 				resultCh := make(chan bool, 1)
 
 				go func() {
-					result, err := n.Ping()
-					resultCh <- (result.Ok && err == nil)
+					err := n.rpc.Ping()
+					resultCh <- err == nil
 				}()
 
 				select {
@@ -86,7 +77,7 @@ func (cdr *Coordinator) pingReplicas() {
 	}
 }
 
-func findReplicaIndex(address string, replicas []nodeDispatcher) (int, bool) {
+func findReplicaIndex(address string, replicas []*node) (int, bool) {
 	for i, replica := range replicas {
 		if replica.Address() == address {
 			return i, true
@@ -100,7 +91,7 @@ func (cdr *Coordinator) updateAll() {
 	for i := 0; i < len(cdr.replicas); i++ {
 		wg.Add(1)
 		go func(i int) {
-			cdr.updateNode(i)
+			cdr.UpdateNode(i)
 			wg.Done()
 		}(i)
 	}
@@ -139,7 +130,7 @@ func (cdr *Coordinator) removeNode(n addressReader) {
 	// After removing the node, the successor, if there was one, now sits at idx
 	// in the chain. Send a message to that node to update it's metadata.
 	if len(cdr.replicas) > idx {
-		err := cdr.updateNode(idx)
+		err := cdr.UpdateNode(idx)
 		if err != nil {
 			log.Printf("Failed to update successor: %s\n", err.Error())
 			return
@@ -148,7 +139,7 @@ func (cdr *Coordinator) removeNode(n addressReader) {
 
 	// Send update to predecessor and update the tail
 	if idx > 0 {
-		err := cdr.updateNode(idx - 1)
+		err := cdr.UpdateNode(idx - 1)
 		if err != nil {
 			log.Printf("Failed to update predecessor: %v\n", err)
 			return
@@ -156,14 +147,15 @@ func (cdr *Coordinator) removeNode(n addressReader) {
 	}
 }
 
-// updateNode sends the latest metadata to a Node to tell it whether it's head
+// UpdateNode sends the latest metadata to a Node to tell it whether it's head
 // or tail and what it's neighbors' addresses are.
-func (cdr *Coordinator) updateNode(i int) error {
+func (cdr *Coordinator) UpdateNode(i int) error {
+	defer cdr.Updates.Done()
 	n := cdr.replicas[i]
 
 	log.Printf("Sending metadata to %s.\n", n.Address())
 
-	var args craqrpc.NodeMeta
+	var args transport.NodeMeta
 
 	args.IsHead = i == 0
 	args.IsTail = len(cdr.replicas) == i+1
@@ -181,14 +173,62 @@ func (cdr *Coordinator) updateNode(i int) error {
 	}
 
 	// call Update method on node
-	reply, err := n.Update(&args)
-	if err != nil {
+	if err := n.rpc.Update(&args); err != nil {
 		return err
 	}
 
-	if !reply.Ok {
-		log.Printf("Update reply from node %d was not OK.\n", i)
+	return nil
+}
+
+// AddNode should be called by Nodes to announce themselves to the Coordinator.
+// The coordinator then adds them to the end of the chain. The coordinator
+// replies with some flags to let the node know if they're head or tail, and
+// the address to the previous Node in the chain. The node is responsible for
+// announcing itself to the previous Node in the chain.
+func (cdr *Coordinator) AddNode(address string) (*transport.NodeMeta, error) {
+	log.Printf("received AddNode from %s\n", address)
+
+	n := &node{
+		last:    time.Now(),
+		address: address,
+		rpc:     cdr.Transport(),
 	}
 
-	return nil
+	if err := n.Connect(); err != nil {
+		log.Printf("failed to connect to node %s\n", address)
+		return nil, err
+	}
+
+	cdr.replicas = append(cdr.replicas, n)
+	cdr.tail = n
+	meta := &transport.NodeMeta{}
+	meta.IsTail = true
+	meta.Tail = address
+
+	if len(cdr.replicas) == 1 {
+		cdr.head = n
+		meta.IsHead = true
+	} else {
+		meta.Prev = cdr.replicas[len(cdr.replicas)-2].Address()
+	}
+
+	// Because the tail node changed, all the other nodes need to be updated to
+	// know where the tail is.
+	for i := 0; i < len(cdr.replicas)-1; i++ {
+		cdr.Updates.Add(1)
+		go cdr.UpdateNode(i)
+	}
+
+	return meta, nil
+}
+
+// Write a new object to the chain.
+func (cdr *Coordinator) Write(key string, value []byte) error {
+	if len(cdr.replicas) < 1 {
+		return ErrEmptyChain
+	}
+
+	// Forward the write to the head
+	head := cdr.replicas[0]
+	return head.rpc.ClientWrite(key, value)
 }

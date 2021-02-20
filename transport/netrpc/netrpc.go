@@ -4,12 +4,21 @@ package netrpc
 
 import (
 	"net/rpc"
-
-	"github.com/despreston/go-craq/transport"
 )
 
-type Client struct{}
+type Client struct {
+	rpc *rpc.Client
+}
 
-func (nrpc *Client) Connect(path string) (transport.Client, error) {
-	return rpc.DialHTTP("tcp", path)
+func (c *Client) Connect(addr string) error {
+	client, err := rpc.DialHTTP("tcp", addr)
+	if err != nil {
+		return err
+	}
+	c.rpc = client
+	return nil
+}
+
+func (c *Client) Close() error {
+	return c.rpc.Close()
 }

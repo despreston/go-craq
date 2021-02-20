@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 
@@ -13,8 +12,8 @@ import (
 func main() {
 	var cdr, node string
 
-	flag.StringVar(&cdr, "c", "localhost:1234", "coordinator address")
-	flag.StringVar(&node, "n", "localhost:1235", "node address to read from")
+	flag.StringVar(&cdr, "c", "192.168.0.30:1234", "coordinator address")
+	flag.StringVar(&node, "n", "192.168.0.30:1236", "node address to read from")
 	flag.Parse()
 
 	if len(os.Args) < 2 {
@@ -26,8 +25,6 @@ func main() {
 	}
 
 	cmd := os.Args[1]
-
-	fmt.Printf("cmd: %s, coordinator: %s\n", cmd, cdr)
 
 	c, err := client.New(cdr, node, &netrpc.Client{})
 	if err != nil {

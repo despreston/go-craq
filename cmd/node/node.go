@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"log"
+	"net/http"
+	"net/rpc"
 
 	"github.com/despreston/go-craq/node"
 	"github.com/despreston/go-craq/store/boltdb"
@@ -19,7 +21,7 @@ func main() {
 	flag.StringVar(&pub, "p", "127.0.0.1:1235", "-p")
 
 	// coordinator address
-	flag.StringVar(&cdr, "c", "127.0.0.1:1234", "-c")
+	flag.StringVar(&cdr, "c", "0.0.0.0:1234", "-c")
 
 	flag.Parse()
 
@@ -30,13 +32,25 @@ func main() {
 
 	defer db.DB.Close()
 
-	opts := node.Opts{
-		Address:    addr,
-		CdrAddress: cdr,
-		PubAddress: pub,
-		Store:      db,
-		Transport:  &netrpc.Client{},
-	}
+	n := node.New(node.Opts{
+		Address:           addr,
+		CdrAddress:        cdr,
+		PubAddress:        pub,
+		Store:             db,
+		Transport:         netrpc.NewNodeClient,
+		CoordinatorClient: netrpc.NewCoordinatorClient(),
+	})
 
-	log.Fatal(node.New(opts).ListenAndServe())
+	b := netrpc.NodeBinding{Svc: n}
+	if err := rpc.RegisterName("RPC", &b); err != nil {
+		log.Fatal(err)
+	}
+	rpc.HandleHTTP()
+
+	// Start the node
+	go n.Start()
+
+	// Start the rpc server
+	log.Println("Listening at " + addr)
+	log.Fatal(http.ListenAndServe(addr, nil))
 }
