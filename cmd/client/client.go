@@ -5,15 +5,14 @@ import (
 	"log"
 	"os"
 
-	"github.com/despreston/go-craq/client"
 	"github.com/despreston/go-craq/transport/netrpc"
 )
 
 func main() {
 	var cdr, node string
 
-	flag.StringVar(&cdr, "c", "192.168.0.30:1234", "coordinator address")
-	flag.StringVar(&node, "n", "192.168.0.30:1236", "node address to read from")
+	flag.StringVar(&cdr, "c", "0.0.0.0:1234", "coordinator address")
+	flag.StringVar(&node, "n", "0.0.0.0:1235", "node address to read from")
 	flag.Parse()
 
 	if len(os.Args) < 2 {
@@ -25,12 +24,6 @@ func main() {
 	}
 
 	cmd := os.Args[1]
-
-	c, err := client.New(cdr, node, &netrpc.Client{})
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	key := os.Args[2]
 
 	switch cmd {
@@ -39,8 +32,16 @@ func main() {
 			log.Fatal("No value given.")
 		}
 		val := os.Args[3]
+		c := netrpc.NewCoordinatorClient()
+		c.Connect(cdr)
 		log.Println(c.Write(key, []byte(val)))
 	case "read":
-		log.Println(c.Read(key))
+		n := netrpc.NewNodeClient()
+		n.Connect(node)
+		k, v, err := n.Read(key)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+		log.Printf("key: %s, value: %s", k, string(v))
 	}
 }
