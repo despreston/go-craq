@@ -24,6 +24,10 @@ func (c *CoordinatorBinding) AddNode(addr *string, r *transport.NodeMeta) error 
 	return nil
 }
 
+func (c *CoordinatorBinding) RemoveNode(addr *string, r *transport.EmptyReply) error {
+	return c.Svc.RemoveNode(*addr)
+}
+
 func (c *CoordinatorBinding) Write(args *transport.ClientWriteArgs, r *transport.EmptyReply) error {
 	return c.Svc.Write(args.Key, args.Value)
 }
@@ -37,6 +41,10 @@ func (cc *CoordinatorClient) AddNode(addr string) (*transport.NodeMeta, error) {
 	reply := &transport.NodeMeta{}
 	err := cc.Client.rpc.Call("RPC.AddNode", addr, reply)
 	return reply, err
+}
+
+func (cc *CoordinatorClient) RemoveNode(addr string) error {
+	return cc.Client.rpc.Call("RPC.RemoveNode", addr, &transport.EmptyReply{})
 }
 
 func (cc *CoordinatorClient) Write(k string, v []byte) error {

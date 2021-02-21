@@ -206,3 +206,22 @@ func TestFullPropagation(t *testing.T) {
 		t.Fatal("Timeout waiting for propagation")
 	}
 }
+
+// Tail fails and the new tail has dirty items. The dirty items get committed.
+func TestNewTailCommitDirty(t *testing.T) {
+	n, n2, c := setupTwoNodeChain()
+	n.committed = make(chan commitEvent, 1)
+	n2.committed = make(chan commitEvent, 1)
+	n.Start()
+	n2.Start()
+	c.Updates.Wait()
+	n.store.Write("hello", []byte("world"), 0)
+	c.RemoveNode("nodeb-public")
+
+	select {
+	case <-n.committed:
+		assertItem(t, n, "hello", []byte("world"))
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for propagation")
+	}
+}

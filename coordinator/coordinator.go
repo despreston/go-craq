@@ -33,7 +33,9 @@ type Coordinator struct {
 	head, tail *node
 	mu         sync.Mutex
 	replicas   []*node
-	// For testing, to know when all UpdateNode calls are finished.
+
+	// For testing the AddNode method. This WaitGroup is done when updates have
+	// been sent to all nodes.
 	Updates *sync.WaitGroup
 }
 
@@ -66,10 +68,10 @@ func (cdr *Coordinator) pingReplicas() {
 				select {
 				case ok := <-resultCh:
 					if !ok {
-						cdr.removeNode(n)
+						cdr.RemoveNode(n.Address())
 					}
 				case <-time.After(pingTimeout):
-					cdr.removeNode(n)
+					cdr.RemoveNode(n.Address())
 				}
 			}(n)
 		}
@@ -98,22 +100,18 @@ func (cdr *Coordinator) updateAll() {
 	wg.Wait()
 }
 
-type addressReader interface {
-	Address() string
-}
-
-func (cdr *Coordinator) removeNode(n addressReader) {
+func (cdr *Coordinator) RemoveNode(address string) error {
 	cdr.mu.Lock()
 	defer cdr.mu.Unlock()
 
-	idx, found := findReplicaIndex(n.Address(), cdr.replicas)
+	idx, found := findReplicaIndex(address, cdr.replicas)
 	if !found {
-		return
+		return errors.New("unknown node")
 	}
 
 	wasTail := idx == len(cdr.replicas)-1
 	cdr.replicas = append(cdr.replicas[:idx], cdr.replicas[idx+1:]...)
-	log.Printf("removed node %s", n.Address())
+	log.Printf("removed node %s", address)
 
 	if wasTail {
 		cdr.tail = nil
@@ -124,7 +122,7 @@ func (cdr *Coordinator) removeNode(n addressReader) {
 		// Because the tail node changed, all the other nodes need to be updated to
 		// know where the tail is.
 		cdr.updateAll()
-		return
+		return nil
 	}
 
 	// After removing the node, the successor, if there was one, now sits at idx
@@ -133,7 +131,7 @@ func (cdr *Coordinator) removeNode(n addressReader) {
 		err := cdr.UpdateNode(idx)
 		if err != nil {
 			log.Printf("Failed to update successor: %s\n", err.Error())
-			return
+			return err
 		}
 	}
 
@@ -142,21 +140,21 @@ func (cdr *Coordinator) removeNode(n addressReader) {
 		err := cdr.UpdateNode(idx - 1)
 		if err != nil {
 			log.Printf("Failed to update predecessor: %v\n", err)
-			return
+			return err
 		}
 	}
+
+	return nil
 }
 
 // UpdateNode sends the latest metadata to a Node to tell it whether it's head
 // or tail and what it's neighbors' addresses are.
 func (cdr *Coordinator) UpdateNode(i int) error {
-	defer cdr.Updates.Done()
 	n := cdr.replicas[i]
 
 	log.Printf("Sending metadata to %s.\n", n.Address())
 
 	var args transport.NodeMeta
-
 	args.IsHead = i == 0
 	args.IsTail = len(cdr.replicas) == i+1
 	args.Tail = cdr.replicas[len(cdr.replicas)-1].Address()
@@ -216,7 +214,10 @@ func (cdr *Coordinator) AddNode(address string) (*transport.NodeMeta, error) {
 	// know where the tail is.
 	for i := 0; i < len(cdr.replicas)-1; i++ {
 		cdr.Updates.Add(1)
-		go cdr.UpdateNode(i)
+		go func(i int) {
+			cdr.UpdateNode(i)
+			defer cdr.Updates.Done()
+		}(i)
 	}
 
 	return meta, nil
