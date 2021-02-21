@@ -49,15 +49,10 @@ included in this project uses the net/rpc package as the transport layer and
 bbolt as the storage layer.
 
 ## Communication
-<<<<<<< HEAD
-_go_craq_ processes communicate via RPC using the built-in net/rpc package from
-the Golang stdlib.
-=======
 _go-craq_ processes communicate via RPC. The project is designed to be used with
 whatever RPC system shall be desired. The basic default client included in the
 go-craq package uses the net/rpc package from Go's stdlib; an easy-to-work-with
 package with a great API.
->>>>>>> 23a6994eff2ac6fd6a4aed8922d0c3beab8b0ebf
 
 Common structs used for RPC method arguments and replies can be seen
 [here](craqrpc/craqrpc.go)
