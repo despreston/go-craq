@@ -170,8 +170,8 @@ func TestKVWrite(t *testing.T) {
 func TestKVCommit(t *testing.T) {
 	s := New()
 
-	want := "no item for key whatever so can't commit"
-	if got := s.Commit("whatever", 1); got.Error() != want {
+	want := store.ErrNotFound
+	if got := s.Commit("whatever", 1); got != want {
 		t.Fatalf("unexpected error\n  want: %#v\n  got: %#v", want, got)
 	}
 
