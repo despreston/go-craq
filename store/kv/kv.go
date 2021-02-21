@@ -3,7 +3,6 @@
 package kv
 
 import (
-	"fmt"
 	"log"
 	"sync"
 
@@ -93,7 +92,7 @@ func (s *KV) Commit(key string, version uint64) error {
 
 	items, has := s.lookup(key)
 	if !has {
-		return fmt.Errorf("no item for key %s so can't commit", key)
+		return store.ErrNotFound
 	}
 
 	// Update the committed flag and find index in items where version is older

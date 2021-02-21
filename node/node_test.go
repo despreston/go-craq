@@ -32,6 +32,19 @@ type FakeCoordinator struct {
 	clientCount int
 }
 
+func assertItem(t *testing.T, n *Node, kWant string, vWant []byte) {
+	k, v, err := n.Read(kWant)
+	if err != nil {
+		t.Fatalf("unexpected error\n  got: %#v", err)
+	}
+	if k != kWant {
+		t.Fatalf("unexpected key\n  want: %s\n  got: %s", kWant, k)
+	}
+	if !bytes.Equal(vWant, v) {
+		t.Fatalf("unexpected value\n  want: %#v\n  got: %#v", vWant, v)
+	}
+}
+
 func setupTwoNodeChain() (*Node, *Node, *FakeCoordinator) {
 	var n, n2 *Node
 	c := &FakeCoordinator{Coordinator: coordinator.New("coordinator")}
@@ -132,39 +145,21 @@ func TestWriteRead(t *testing.T) {
 	n.Start()
 	n2.Start()
 	c.Updates.Wait()
-	n.committed = make(chan commit, 1)
+	n.committed = make(chan commitEvent, 1)
 	c.Write("hello", []byte("world"))
 
 	select {
 	case got := <-n.committed:
-		want := commit{Key: "hello", Version: 0}
+		want := commitEvent{Key: "hello", Version: 0}
 		if diff := cmp.Diff(got, want); diff != "" {
 			t.Fatalf("unexpected commit\n  want: %#v\n  got: %#v", want, got)
 		}
 
 		// Reading from node A
-		k, v, err := n.Read("hello")
-		if err != nil {
-			t.Fatalf("unexpected error\n  got: %#v", err)
-		}
-		if k != "hello" {
-			t.Fatalf("unexpected key\n  want: hello\n  got: %#v", k)
-		}
-		if want := []byte("world"); !bytes.Equal(want, v) {
-			t.Fatalf("unexpected value\n  want: %#v\n  got: %#v", want, v)
-		}
+		assertItem(t, n, "hello", []byte("world"))
 
 		// Reading from node B
-		k, v, err = n2.Read("hello")
-		if err != nil {
-			t.Fatalf("unexpected error\n  got: %#v", err)
-		}
-		if k != "hello" {
-			t.Fatalf("unexpected key\n  want: hello\n  got: %#v", k)
-		}
-		if want := []byte("world"); !bytes.Equal(want, v) {
-			t.Fatalf("unexpected value\n  want: %#v\n  got: %#v", want, v)
-		}
+		assertItem(t, n2, "hello", []byte("world"))
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for commit")
 	}
@@ -192,14 +187,22 @@ func TestReadDirty(t *testing.T) {
 	n.store.Commit("hello", 0)
 	n2.latest["hello"] = 1
 
-	k, v, err := n.Read("hello")
-	if err != nil {
-		t.Fatalf("unexpected error\n  got: %#v", err)
-	}
-	if k != "hello" {
-		t.Fatalf("unexpected key\n  want: hello\n  got: %#v", k)
-	}
-	if want := []byte("foo"); !bytes.Equal(want, v) {
-		t.Fatalf("unexpected value\n  want: %#v\n  got: %#v", want, v)
+	assertItem(t, n, "hello", []byte("foo"))
+}
+
+// New node gets caught up by asking for items from the other node.
+func TestFullPropagation(t *testing.T) {
+	n, n2, c := setupTwoNodeChain()
+	n.committed = make(chan commitEvent, 1)
+	n2.committed = make(chan commitEvent, 1)
+	n.Start()
+	c.Write("hello", []byte("world"))
+	n2.Start()
+
+	select {
+	case <-n2.committed:
+		assertItem(t, n2, "hello", []byte("world"))
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for propagation")
 	}
 }

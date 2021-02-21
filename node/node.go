@@ -4,7 +4,6 @@ package node
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"sync"
 
@@ -35,7 +34,7 @@ type Opts struct {
 	CoordinatorClient transport.CoordinatorClient
 }
 
-type commit struct {
+type commitEvent struct {
 	Key     string
 	Version uint64
 }
@@ -50,7 +49,7 @@ type Node struct {
 	// Latest version of a given key
 	latest map[string]uint64
 	// For listening to commit's. For testing.
-	committed                    chan commit
+	committed                    chan commitEvent
 	cdrAddress, address, pubAddr string
 	cdr                          transport.CoordinatorClient
 	IsHead, IsTail               bool
@@ -97,8 +96,6 @@ func (n *Node) connectToCoordinator() error {
 		log.Println(err.Error())
 		return err
 	}
-
-	fmt.Printf("Node: %s, reply: %#v\n", n.pubAddr, reply)
 
 	n.IsHead = reply.IsHead
 	n.IsTail = reply.IsTail
@@ -166,12 +163,40 @@ func (n *Node) writePropagated(reply *transport.PropagateResponse) error {
 	return nil
 }
 
+// Commit the version to the store, update n.latest for this key, and announce
+// the commit to the n.committed channel if there is one.
+func (n *Node) commit(key string, version uint64) error {
+	if err := n.store.Commit(key, version); err != nil {
+		log.Printf("Failed to commit. Key: %s Version: %d Error: %#v", key, version, err)
+		return err
+	}
+
+	n.latest[key] = version
+
+	if n.committed != nil {
+		n.committed <- commitEvent{Key: key, Version: version}
+	}
+
+	return nil
+}
+
 func (n *Node) commitPropagated(reply *transport.PropagateResponse) error {
 	// Commit items from reply to store.
 	for key, forKey := range *reply {
 		for _, item := range forKey {
-			if err := n.store.Commit(key, item.Version); err != nil {
-				log.Printf("Failed to commit item %+v to store: %#v\n", item, err)
+			// It's possible the item doesn't exist. In that case, add it first.
+			// This sort of a poor man's upsert, but it saves from having to
+			// deal w/ it in the storage layer, which should make it easier to
+			// write new storers.
+			if err := n.commit(key, item.Version); err != nil {
+				if err == store.ErrNotFound {
+					if err := n.store.Write(key, item.Value, item.Version); err != nil {
+						return err
+					}
+					if err := n.commit(key, item.Version); err != nil {
+						return err
+					}
+				}
 				return err
 			}
 		}
@@ -355,7 +380,7 @@ func (n *Node) ClientWrite(key string, val []byte) error {
 	// mark the item as committed and return early.
 	if next.address == "" {
 		log.Println("No successor")
-		if err := n.store.Commit(key, version); err != nil {
+		if err := n.commit(key, version); err != nil {
 			return err
 		}
 		return nil
@@ -394,7 +419,7 @@ func (n *Node) Write(key string, val []byte, version uint64) error {
 
 	// At this point it's assumed this node is the tail.
 
-	if err := n.store.Commit(key, version); err != nil {
+	if err := n.commit(key, version); err != nil {
 		log.Printf("Failed to mark as committed in Write. %v\n", err)
 		return err
 	}
@@ -407,14 +432,8 @@ func (n *Node) Write(key string, val []byte, version uint64) error {
 // commitAndSend commits an item to the store and sends a message to the
 // predecessor node to tell it to commit as well.
 func (n *Node) commitAndSend(key string, version uint64) error {
-	if err := n.store.Commit(key, version); err != nil {
+	if err := n.commit(key, version); err != nil {
 		return err
-	}
-
-	n.latest[key] = version
-
-	if n.committed != nil {
-		n.committed <- commit{Key: key, Version: version}
 	}
 
 	// if this node has a predecessor, send commit to previous node
