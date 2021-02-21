@@ -54,14 +54,26 @@ whatever RPC system shall be desired. The basic default client included in the
 go-craq package uses the net/rpc package from Go's stdlib; an easy-to-work-with
 package with a great API.
 
-Common structs used for RPC method arguments and replies can be seen
-[here](craqrpc/craqrpc.go)
+### Adding a New Transport Implementation
+Pull requests for additional transport implementations are very welcome. Some
+common ones that would be great to have are gRPC and HTTP. Start by reading
+through [transport/transport.go](transport/transport.go). Use
+[transport/netrpc](transport/netrpc) as an example.
 
 ## Storage
 _go-craq_ is designed to make it easy to swap the persistance layer. CRAQ is
 flexible and any storage unit that implements the `Storer` interface in
 [store/store.go](store/store.go) can be used. Some implementations for common
 storage projects can be found in the `store` package.
+
+### Adding a New Storage Implementation
+Pull requests for additional storage implementations are very welcome. Start by
+reading through the comments in [store/store.go](store/store.go). Use the
+store/kv package as an example. CRAQ should work well with volatile and
+non-volatile storage but mixing should be avoided or else you may end up seeing
+long startup times due to data propagation. Mixing persistent storage mechanisms
+is an interesting idea I've been playing with myself. For example, one node
+storing items in the cloud and another storing items locally.
 
 ## Reading the Code
 There are several places to start that'll give you a great understanding of how
