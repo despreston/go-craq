@@ -20,7 +20,7 @@ func (c *CoordinatorBinding) AddNode(addr *string, r *transport.NodeMeta) error 
 	if err != nil {
 		return err
 	}
-	r = meta
+	*r = *meta
 	return nil
 }
 

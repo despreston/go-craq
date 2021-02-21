@@ -120,7 +120,7 @@ func (n *NodeBinding) FwdPropagate(
 	reply *transport.PropagateResponse,
 ) error {
 	r, err := n.Svc.FwdPropagate(args)
-	reply = r
+	*reply = *r
 	return err
 }
 
@@ -129,7 +129,7 @@ func (n *NodeBinding) BackPropagate(
 	reply *transport.PropagateResponse,
 ) error {
 	r, err := n.Svc.BackPropagate(args)
-	reply = r
+	*reply = *r
 	return err
 }
 
