@@ -12,20 +12,15 @@ import (
 )
 
 func main() {
-	var addr, pub, cdr string
+	var addr, pub, cdr, dbFile string
 
-	// local address
-	flag.StringVar(&addr, "a", "127.0.0.1:1235", "-a")
-
-	// public address
-	flag.StringVar(&pub, "p", "127.0.0.1:1235", "-p")
-
-	// coordinator address
-	flag.StringVar(&cdr, "c", "0.0.0.0:1234", "-c")
-
+	flag.StringVar(&addr, "a", "127.0.0.1:1235", "Local address to listen on")
+	flag.StringVar(&pub, "p", "127.0.0.1:1235", "Public address reachable by coordinator and other nodes")
+	flag.StringVar(&cdr, "c", "127.0.0.1:1234", "Coordinator address")
+	flag.StringVar(&dbFile, "f", "craq.db", "Bolt DB database file")
 	flag.Parse()
 
-	db := boltdb.New("my.db", "yessir")
+	db := boltdb.New(dbFile, "yessir")
 	if err := db.Connect(); err != nil {
 		log.Fatal(err)
 	}
