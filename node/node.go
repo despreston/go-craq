@@ -62,6 +62,10 @@ type Node struct {
 
 // New creates a new Node.
 func New(opts Opts) *Node {
+	logger := opts.Log
+	if opts.Log == nil {
+		logger = log.Default()
+	}
 	return &Node{
 		latest:     make(map[string]uint64),
 		neighbors:  make(map[craqrpc.NeighborPos]neighbor, 3),
@@ -71,7 +75,7 @@ func New(opts Opts) *Node {
 		transport:  opts.Transport,
 		pubAddr:    opts.PubAddress,
 		cdr:        opts.CoordinatorClient,
-		log:        opts.Log,
+		log:        logger,
 	}
 }
 
