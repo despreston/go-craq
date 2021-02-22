@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
 	"net/rpc"
@@ -10,8 +11,11 @@ import (
 )
 
 func main() {
+	addr := flag.String("a", "127.0.0.1:1234", "Local address to listen on")
+	flag.Parse()
+
 	c := coordinator.Coordinator{
-		Address:   "0.0.0.0:1234",
+		Address:   *addr,
 		Transport: netrpc.NewNodeClient,
 	}
 
