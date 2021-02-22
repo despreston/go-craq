@@ -30,6 +30,12 @@ Write |     +------------------+
 ```
 
 ## Processes
+There are 3 packages that should be started to run the chain. The default node
+implementation in [cmd/node](cmd/node) uses the Go net/rpc package and
+[bbolt](go.etcd.io/bbolt) for storage. [store/kv](store/kv) package is a
+_very simple_ in-memory key/value store that is included as an example to work
+off of when adding new storage implementations.
+
 ### Coordinator
 Facilitates new writes to the chain; allows nodes to announce themselves to the
 chain; manages the order of the nodes of the chain. One Coordinator should be
@@ -37,11 +43,25 @@ run for each chain. For better resiliency, you _could_ run a cluster of
 Coordinators and use something like Raft or Paxos for leader election, but
 that's outside the scope of this project.
 
+#### Run Flags
+```sh
+-a # Local address to listen on. Default: 127.0.0.1:1234
+```
+
 ### Node
 Represents a single node in the chain. Responsible for storing writes, serving
 reads, and forwarding messages along the chain. In practice, you would probably
 have a single Node process running on a machine. Each Node should have it's own
 storage unit.
+
+#### Run Flags
+```sh
+-a # Local address to listen on. Default: 127.0.0.01:1235
+-p # Public address reachable by coordinator and the other nodes. Default:
+127.0.0.1:1235
+-c # Coordinator address. Default: 127.0.0.1:1234
+-f # Bolt DB database file. Default: craq.db
+```
 
 ### Client
 Basic CLI tool for interacting with the chain. Allows writes and reads. The one
@@ -74,6 +94,17 @@ non-volatile storage but mixing should be avoided or else you may end up seeing
 long startup times due to data propagation. Mixing persistent storage mechanisms
 is an interesting idea I've been playing with myself. For example, one node
 storing items in the cloud and another storing items locally.
+
+[store/storetest](store/storetest) should be used for testing new storage
+implementations. Run the test suite like this:
+```go
+func TestStorer(t *testing.T) {
+	storetest.Run(t, func(name string, test storetest.Test) {
+    // New() is your store's constructor function.
+		test(t, New())
+	})
+}
+```
 
 ## Reading the Code
 There are several places to start that'll give you a great understanding of how
