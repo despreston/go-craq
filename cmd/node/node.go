@@ -39,6 +39,7 @@ func main() {
 		Store:             db,
 		Transport:         netrpc.NewNodeClient,
 		CoordinatorClient: netrpc.NewCoordinatorClient(),
+		Log:               log.Default(),
 	})
 
 	b := netrpc.NodeBinding{Svc: n}

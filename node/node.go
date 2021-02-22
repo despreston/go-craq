@@ -32,6 +32,8 @@ type Opts struct {
 	Transport transport.NodeClientFactory
 	// For communication with the Coordinator
 	CoordinatorClient transport.CoordinatorClient
+	// Log
+	Log *log.Logger
 }
 
 type commitEvent struct {
@@ -55,6 +57,7 @@ type Node struct {
 	IsHead, IsTail               bool
 	mu                           sync.Mutex
 	transport                    func() transport.NodeClient
+	log                          *log.Logger
 }
 
 // New creates a new Node.
@@ -68,6 +71,7 @@ func New(opts Opts) *Node {
 		transport:  opts.Transport,
 		pubAddr:    opts.PubAddress,
 		cdr:        opts.CoordinatorClient,
+		log:        opts.Log,
 	}
 }
 
@@ -84,16 +88,16 @@ func (n *Node) Start() error {
 func (n *Node) connectToCoordinator() error {
 	err := n.cdr.Connect(n.cdrAddress)
 	if err != nil {
-		log.Println("Error connecting to the coordinator")
+		n.log.Println("Error connecting to the coordinator")
 		return err
 	}
 
-	log.Printf("Connected to coordinator at %s\n", n.cdrAddress)
+	n.log.Printf("Connected to coordinator at %s\n", n.cdrAddress)
 
 	// Announce self to the Coordinatorr
 	reply, err := n.cdr.AddNode(n.pubAddr)
 	if err != nil {
-		log.Println(err.Error())
+		n.log.Println(err.Error())
 		return err
 	}
 
@@ -104,7 +108,7 @@ func (n *Node) connectToCoordinator() error {
 	// Connect to predecessor
 	if reply.Prev != "" {
 		if err := n.connectToNode(reply.Prev, craqrpc.NeighborPosPrev); err != nil {
-			log.Printf("Failed to connect to node in ConnectToCoordinator. %v\n", err)
+			n.log.Printf("Failed to connect to node in ConnectToCoordinator. %v\n", err)
 			return err
 		}
 		if err := n.fullPropagate(); err != nil {
@@ -134,7 +138,7 @@ func (n *Node) connectToNode(address string, pos craqrpc.NeighborPos) error {
 		return err
 	}
 
-	log.Printf("connected to %s\n", address)
+	n.log.Printf("connected to %s\n", address)
 
 	// Disconnect from current neighbor if there's one connected.
 	nbr := n.neighbors[pos]
@@ -155,7 +159,7 @@ func (n *Node) writePropagated(reply *transport.PropagateResponse) error {
 	for key, forKey := range *reply {
 		for _, item := range forKey {
 			if err := n.store.Write(key, item.Value, item.Version); err != nil {
-				log.Printf("Failed to write item %+v to store: %#v\n", item, err)
+				n.log.Printf("Failed to write item %+v to store: %#v\n", item, err)
 				return err
 			}
 		}
@@ -167,7 +171,7 @@ func (n *Node) writePropagated(reply *transport.PropagateResponse) error {
 // the commit to the n.committed channel if there is one.
 func (n *Node) commit(key string, version uint64) error {
 	if err := n.store.Commit(key, version); err != nil {
-		log.Printf("Failed to commit. Key: %s Version: %d Error: %#v", key, version, err)
+		n.log.Printf("Failed to commit. Key: %s Version: %d Error: %#v", key, version, err)
 		return err
 	}
 
@@ -218,13 +222,13 @@ func propagateRequestFromItems(items []*store.Item) *transport.PropagateRequest 
 func (n *Node) requestFwdPropagation(client transport.NodeClient) error {
 	dirty, err := n.store.AllDirty()
 	if err != nil {
-		log.Printf("Failed to get all dirty items: %#v\n", err)
+		n.log.Printf("Failed to get all dirty items: %#v\n", err)
 		return err
 	}
 
 	reply, err := client.FwdPropagate(propagateRequestFromItems(dirty))
 	if err != nil {
-		log.Printf("Failed during forward propagation: %#v\n", err)
+		n.log.Printf("Failed during forward propagation: %#v\n", err)
 		return err
 	}
 
@@ -236,13 +240,13 @@ func (n *Node) requestFwdPropagation(client transport.NodeClient) error {
 func (n *Node) requestBackPropagation(client transport.NodeClient) error {
 	committed, err := n.store.AllCommitted()
 	if err != nil {
-		log.Printf("Failed to get all committed items: %#v\n", err)
+		n.log.Printf("Failed to get all committed items: %#v\n", err)
 		return err
 	}
 
 	reply, err := client.BackPropagate(propagateRequestFromItems(committed))
 	if err != nil {
-		log.Printf("Failed during back propagation: %#v\n", err)
+		n.log.Printf("Failed during back propagation: %#v\n", err)
 		return err
 	}
 
@@ -264,15 +268,15 @@ func (n *Node) connectToPredecessor(address string) error {
 	prev := n.neighbors[craqrpc.NeighborPosPrev]
 
 	if prev.address == address {
-		log.Println("New predecessor same address as last one, keeping conn.")
+		n.log.Println("New predecessor same address as last one, keeping conn.")
 		return nil
 	} else if address == "" {
-		log.Println("Resetting predecessor")
+		n.log.Println("Resetting predecessor")
 		n.resetNeighbor(craqrpc.NeighborPosPrev)
 		return nil
 	}
 
-	log.Printf("connecting to new predecessor %s\n", address)
+	n.log.Printf("connecting to new predecessor %s\n", address)
 	if err := n.connectToNode(address, craqrpc.NeighborPosPrev); err != nil {
 		return err
 	}
@@ -285,15 +289,15 @@ func (n *Node) connectToSuccessor(address string) error {
 	next := n.neighbors[craqrpc.NeighborPosNext]
 
 	if next.address == address {
-		log.Println("New successor same address as last one, keeping conn.")
+		n.log.Println("New successor same address as last one, keeping conn.")
 		return nil
 	} else if address == "" {
-		log.Println("Resetting successor")
+		n.log.Println("Resetting successor")
 		n.resetNeighbor(craqrpc.NeighborPosNext)
 		return nil
 	}
 
-	log.Printf("connecting to new successor %s\n", address)
+	n.log.Printf("connecting to new successor %s\n", address)
 	if err := n.connectToNode(address, craqrpc.NeighborPosNext); err != nil {
 		return err
 	}
@@ -307,7 +311,7 @@ func (n *Node) connectToSuccessor(address string) error {
 // ones. Coordinator uses this method to update metadata of the node when there
 // is a failure or re-organization of the chain.
 func (n *Node) Update(meta *transport.NodeMeta) error {
-	log.Printf("Received metadata update: %+v\n", meta)
+	n.log.Printf("Received metadata update: %+v\n", meta)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.IsHead = meta.IsHead
@@ -335,14 +339,14 @@ func (n *Node) Update(meta *transport.NodeMeta) error {
 	if meta.IsTail {
 		dirty, err := n.store.AllDirty()
 		if err != nil {
-			log.Println("Error fetching all dirty items during node Update")
+			n.log.Println("Error fetching all dirty items during node Update")
 			return err
 		}
 
 		for i := range dirty {
 			go func(item *store.Item) {
 				if err := n.commitAndSend(item.Key, item.Version); err != nil {
-					log.Printf(
+					n.log.Printf(
 						"Error during commit & send for item: %#v, error: %#v\n",
 						item,
 						err,
@@ -366,11 +370,11 @@ func (n *Node) ClientWrite(key string, val []byte) error {
 	}
 
 	if err := n.store.Write(key, val, version); err != nil {
-		log.Printf("Failed to create during ClientWrite. %v\n", err)
+		n.log.Printf("Failed to create during ClientWrite. %v\n", err)
 		return err
 	}
 
-	log.Printf("Node RPC ClientWrite() created version %d of key %s\n", version, key)
+	n.log.Printf("Node RPC ClientWrite() created version %d of key %s\n", version, key)
 
 	// Forward the new object to the successor node.
 
@@ -379,7 +383,7 @@ func (n *Node) ClientWrite(key string, val []byte) error {
 	// If there's no successor, it means this is the only node in the chain, so
 	// mark the item as committed and return early.
 	if next.address == "" {
-		log.Println("No successor")
+		n.log.Println("No successor")
 		if err := n.commit(key, version); err != nil {
 			return err
 		}
@@ -387,7 +391,7 @@ func (n *Node) ClientWrite(key string, val []byte) error {
 	}
 
 	if err := next.rpc.Write(key, val, version); err != nil {
-		log.Printf("Failed to send to successor during ClientWrite. %v\n", err)
+		n.log.Printf("Failed to send to successor during ClientWrite. %v\n", err)
 		return err
 	}
 
@@ -399,10 +403,10 @@ func (n *Node) ClientWrite(key string, val []byte) error {
 // marked committed and a Commit message is sent to the predecessor in the
 // chain.
 func (n *Node) Write(key string, val []byte, version uint64) error {
-	log.Printf("Node RPC Write() %s version %d to store\n", key, version)
+	n.log.Printf("Node RPC Write() %s version %d to store\n", key, version)
 
 	if err := n.store.Write(key, val, version); err != nil {
-		log.Printf("Failed to write. %v\n", err)
+		n.log.Printf("Failed to write. %v\n", err)
 		return err
 	}
 
@@ -411,7 +415,7 @@ func (n *Node) Write(key string, val []byte, version uint64) error {
 	if !n.IsTail {
 		next := n.neighbors[craqrpc.NeighborPosNext]
 		if err := next.rpc.Write(key, val, version); err != nil {
-			log.Printf("Failed to send to successor during Write. %v\n", err)
+			n.log.Printf("Failed to send to successor during Write. %v\n", err)
 			return err
 		}
 		return nil
@@ -420,7 +424,7 @@ func (n *Node) Write(key string, val []byte, version uint64) error {
 	// At this point it's assumed this node is the tail.
 
 	if err := n.commit(key, version); err != nil {
-		log.Printf("Failed to mark as committed in Write. %v\n", err)
+		n.log.Printf("Failed to mark as committed in Write. %v\n", err)
 		return err
 	}
 
@@ -447,7 +451,7 @@ func (n *Node) commitAndSend(key string, version uint64) error {
 func (n *Node) sendCommitToPrev(key string, version uint64) error {
 	prev := n.neighbors[craqrpc.NeighborPosPrev]
 	if err := prev.rpc.Commit(key, version); err != nil {
-		log.Printf("Failed to send Commit to predecessor. %v\n", err)
+		n.log.Printf("Failed to send Commit to predecessor. %v\n", err)
 		return err
 	}
 	return nil
@@ -471,7 +475,7 @@ func (n *Node) Read(key string) (string, []byte, error) {
 		v, err := n.getLatestVersion(key)
 
 		if err != nil {
-			log.Printf(
+			n.log.Printf(
 				"Failed to get latest version of %s from the tail. %v\n",
 				key,
 				err,
