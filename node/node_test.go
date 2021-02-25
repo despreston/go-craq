@@ -33,15 +33,16 @@ type FakeCoordinator struct {
 }
 
 func assertItem(t *testing.T, n *Node, kWant string, vWant []byte) {
+	t.Helper()
 	k, v, err := n.Read(kWant)
 	if err != nil {
-		t.Fatalf("unexpected error\n  got: %#v", err)
+		t.Errorf("Read(%s) unexpected error\n  got: %#v", kWant, err)
 	}
 	if k != kWant {
-		t.Fatalf("unexpected key\n  want: %s\n  got: %s", kWant, k)
+		t.Errorf("Read(%s) unexpected key\n  want: %s\n  got: %s", kWant, kWant, k)
 	}
 	if !bytes.Equal(vWant, v) {
-		t.Fatalf("unexpected value\n  want: %#v\n  got: %#v", vWant, v)
+		t.Errorf("Read(%s) unexpected value\n  want: %#v\n  got: %#v", kWant, vWant, v)
 	}
 }
 
@@ -92,6 +93,7 @@ func TestStart(t *testing.T) {
 		PubAddress:        "node-public",
 		Transport:         func() transport.NodeClient { return &FakeNode{} },
 		CoordinatorClient: c,
+		Store:             kv.New(),
 	})
 
 	c.Coordinator.Transport = func() transport.NodeClient {
@@ -99,15 +101,15 @@ func TestStart(t *testing.T) {
 	}
 
 	if err := n.Start(); err != nil {
-		t.Fatalf("unexpected error\n  got: %#v", err.Error())
+		t.Errorf("Start() unexpected error\n  got: %#v", err.Error())
 	}
 
 	if !n.IsHead {
-		t.Fatalf("unexpected IsHead\n  want: %#v\n  got: %#v", true, n.IsHead)
+		t.Errorf("Start() unexpected IsHead\n  want: %#v\n  got: %#v", true, n.IsHead)
 	}
 
 	if !n.IsTail {
-		t.Fatalf("unexpected IsTail\n  want: %#v\n  got: %#v", true, n.IsTail)
+		t.Errorf("Start() unexpected IsTail\n  want: %#v\n  got: %#v", true, n.IsTail)
 	}
 }
 
@@ -116,25 +118,25 @@ func TestStart_SecondNode(t *testing.T) {
 	n.Start()
 
 	if err := n2.Start(); err != nil {
-		t.Fatalf("unexpected error\n  got: %#v", err.Error())
+		t.Fatalf("Start() unexpected error\n  got: %#v", err.Error())
 	}
 
 	c.Updates.Wait()
 
 	if !n.IsHead {
-		t.Fatalf("unexpected IsHead\n  want: %#v\n  got: %#v", true, n.IsHead)
+		t.Errorf("Start() unexpected IsHead\n  want: %#v\n  got: %#v", true, n.IsHead)
 	}
 
 	if n2.IsHead {
-		t.Fatalf("unexpected IsHead\n  want: %#v\n  got: %#v", false, n2.IsHead)
+		t.Errorf("Start() unexpected IsHead\n  want: %#v\n  got: %#v", false, n2.IsHead)
 	}
 
 	if n.IsTail {
-		t.Fatalf("unexpected IsTail\n  want: %#v\n  got: %#v", false, n.IsTail)
+		t.Errorf("Start() unexpected IsTail\n  want: %#v\n  got: %#v", false, n.IsTail)
 	}
 
 	if !n2.IsTail {
-		t.Fatalf("unexpected IsTail\n  want: %#v\n  got: %#v", true, n2.IsTail)
+		t.Errorf("Start() unexpected IsTail\n  want: %#v\n  got: %#v", true, n2.IsTail)
 	}
 }
 
@@ -170,7 +172,7 @@ func TestReadUnknownKey(t *testing.T) {
 	_, _, err := n.Read("whatever")
 	want := "key doesn't exist"
 	if err == nil || err.Error() != want {
-		t.Fatalf("unexpected error\n  want: %s\n  got:%s", want, err)
+		t.Errorf("Read(whatever) unexpected error\n  want: %s\n  got:%s", want, err)
 	}
 }
 

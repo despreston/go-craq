@@ -41,7 +41,7 @@ func (nc *NodeClient) Commit(key string, version uint64) error {
 }
 
 func (nc *NodeClient) Read(key string) (string, []byte, error) {
-	reply := &transport.ReadResponse{}
+	reply := &transport.Item{}
 	err := nc.Client.rpc.Call("RPC.Read", key, reply)
 	return reply.Key, reply.Value, err
 }
@@ -77,6 +77,14 @@ func (nc *NodeClient) FwdPropagate(
 ) (*transport.PropagateResponse, error) {
 	reply := &transport.PropagateResponse{}
 	if err := nc.Client.rpc.Call("RPC.FwdPropagate", vByK, reply); err != nil {
+		return nil, err
+	}
+	return reply, nil
+}
+
+func (nc *NodeClient) ReadAll() (*[]transport.Item, error) {
+	reply := &[]transport.Item{}
+	if err := nc.Client.rpc.Call("RPC.ReadAll", &transport.EmptyArgs{}, reply); err != nil {
 		return nil, err
 	}
 	return reply, nil
@@ -137,12 +145,21 @@ func (n *NodeBinding) Commit(args *transport.CommitArgs, _ *transport.EmptyReply
 	return n.Svc.Commit(args.Key, args.Version)
 }
 
-func (n *NodeBinding) Read(key string, reply *transport.ReadResponse) error {
+func (n *NodeBinding) Read(key string, reply *transport.Item) error {
 	key, value, err := n.Svc.Read(key)
 	if err != nil {
 		return err
 	}
 	reply.Key = key
 	reply.Value = value
+	return nil
+}
+
+func (n *NodeBinding) ReadAll(_ *transport.EmptyArgs, reply *[]transport.Item) error {
+	items, err := n.Svc.ReadAll()
+	if err != nil {
+		return err
+	}
+	*reply = *items
 	return nil
 }

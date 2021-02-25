@@ -42,46 +42,26 @@ func testBasicWriteCommitRead(t *testing.T, s store.Storer) {
 	}
 
 	if err := s.Write(itm.Key, itm.Value, itm.Version); err != nil {
-		t.Fatalf(
-			"unexpected error\n  want: %#v\n  got: %#v",
-			nil,
-			err,
-		)
+		t.Fatalf("Write(hello, world, 1) unexpected error\n  got: %#v", err)
 	}
 
 	if err := s.Commit(itm.Key, itm.Version); err != nil {
-		t.Fatalf(
-			"unexpected error\n  want: %#v\n  got: %#v",
-			nil,
-			err,
-		)
+		t.Fatalf("Commit(hello, 1) unexpected error\n  got: %#v", err)
 	}
 
 	got, err := s.Read(itm.Key)
 	if err != nil {
-		t.Fatalf(
-			"unexpected error\n  want: %#v\n  got: %#v",
-			nil,
-			err,
-		)
+		t.Fatalf("Read(hello) unexpected error\n  got: %#v", err)
 	}
 	if !reflect.DeepEqual(got, &itm) {
-		t.Fatalf(
-			"unexpected item\n  want: %#v\n  got: %#v",
-			itm,
-			got,
-		)
+		t.Fatalf("Read(hello) unexpected item\n  want: %#v\n  got: %#v", itm, got)
 	}
 }
 
 func testReadUnknownKey(t *testing.T, s store.Storer) {
 	want := store.ErrNotFound
 	if _, err := s.Read("unknown"); err != want {
-		t.Fatalf(
-			"unexpected error\n  want: %#v\n  got: %#v",
-			want,
-			err,
-		)
+		t.Fatalf("Read(unknown) unexpected error\n  got: %#v", err)
 	}
 }
 
@@ -93,20 +73,12 @@ func testReadDirty(t *testing.T, s store.Storer) {
 	}
 
 	if err := s.Write(itm.Key, itm.Value, itm.Version); err != nil {
-		t.Fatalf(
-			"unexpected error\n  want: %#v\n  got: %#v",
-			nil,
-			err,
-		)
+		t.Fatalf("Write(hello, world, 1) unexpected error\n  got: %#v", err)
 	}
 
 	want := store.ErrDirtyItem
 	if _, err := s.Read(itm.Key); err != want {
-		t.Fatalf(
-			"unexpected error\n  want: %#v\n  got: %#v",
-			want,
-			err,
-		)
+		t.Fatalf("Read(hello) unexpected error\n  got: %#v", err)
 	}
 }
 
@@ -121,30 +93,18 @@ func testReadVersion(t *testing.T, s store.Storer) {
 	read, err := s.ReadVersion(itm.Key, itm.Version)
 
 	if err != nil {
-		t.Fatalf(
-			"unexpected error\n  want: %#v\n  got: %#v",
-			nil,
-			err,
-		)
+		t.Fatalf("ReadVersion(hello, 1) unexpected error\n  got: %#v", err)
 	}
 
 	if !reflect.DeepEqual(itm, read) {
-		t.Fatalf(
-			"unexpected item\n  want: %#v\n  got: %#v",
-			itm,
-			read,
-		)
+		t.Fatalf("ReadVersion(hello, 1) unexpected item\n  want: %#v\n  got: %#v", itm, read)
 	}
 }
 
 func testReadVersionUnknownKey(t *testing.T, s store.Storer) {
 	want := store.ErrNotFound
 	if _, err := s.ReadVersion("wrong", 0); err != want {
-		t.Fatalf(
-			"unexpected error\n  want: %#v\n  got: %#v",
-			want,
-			err,
-		)
+		t.Fatalf("ReadVersion(wrong, 0) unexpected error\n  want: %#v\n  got: %#v", want, err)
 	}
 }
 
@@ -184,7 +144,7 @@ func testAllNewerCommitted(t *testing.T, s store.Storer) {
 		)
 	}
 	if diff := cmp.Diff(items[1:2], got); diff != "" {
-		t.Errorf("AllNewerCommitted response mismatch (-want +got):\n%s", diff)
+		t.Fatalf("AllNewerCommitted response mismatch (-want +got):\n%s", diff)
 	}
 
 	s.Commit("another", uint64(1))
@@ -323,18 +283,10 @@ func testAllCommitted(t *testing.T, s store.Storer) {
 
 	got, err := s.AllCommitted()
 	if err != nil {
-		t.Fatalf(
-			"unexpected error\n  want: %#v\n  got: %#v",
-			nil,
-			err,
-		)
+		t.Fatalf("AllCommitted() unexpected error\n  got: %#v", err)
 	}
 	if want, got := items[0], got[0]; !reflect.DeepEqual(want, got) {
-		t.Fatalf(
-			"unexpected response\n  want: %#v\n  got: %#v",
-			want,
-			got,
-		)
+		t.Fatalf("AllCommitted() unexpected response\n  want: %#v\n  got: %#v", want, got)
 	}
 
 	var found bool
@@ -346,6 +298,6 @@ func testAllCommitted(t *testing.T, s store.Storer) {
 		}
 	}
 	if !found {
-		t.Fatalf("AllCommitted response missing item:\n%#v", want)
+		t.Fatalf("AllCommitted() response missing item:\n%#v", want)
 	}
 }

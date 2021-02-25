@@ -186,6 +186,7 @@ func (n *Node) writePropagated(reply *transport.PropagateResponse) error {
 				n.log.Printf("Failed to write item %+v to store: %#v\n", item, err)
 				return err
 			}
+			n.log.Printf("wrote %s", key)
 		}
 	}
 	return nil
@@ -515,6 +516,24 @@ func (n *Node) Read(key string) (string, []byte, error) {
 	}
 
 	return key, item.Value, nil
+}
+
+// ReadAll returns all committed key/value pairs in the store.
+func (n *Node) ReadAll() (*[]transport.Item, error) {
+	fullItems, err := n.store.AllCommitted()
+	if err != nil {
+		return nil, err
+	}
+
+	items := []transport.Item{}
+	for _, itm := range fullItems {
+		items = append(items, transport.Item{
+			Key:   itm.Key,
+			Value: itm.Value,
+		})
+	}
+
+	return &items, nil
 }
 
 func (n *Node) getLatestVersion(key string) (uint64, error) {

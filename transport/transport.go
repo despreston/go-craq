@@ -24,6 +24,7 @@ type NodeService interface {
 	BackPropagate(verByKey *PropagateRequest) (*PropagateResponse, error)
 	Commit(key string, version uint64) error
 	Read(key string) (string, []byte, error)
+	ReadAll() (*[]Item, error)
 }
 
 // Client facilitates communication.
@@ -99,8 +100,8 @@ type VersionResponse struct {
 	Version uint64
 }
 
-// ReadResponse is the response a node will give when reading from the store.
-type ReadResponse struct {
+// Item is a single key/val pair.
+type Item struct {
 	Key   string
 	Value []byte
 }

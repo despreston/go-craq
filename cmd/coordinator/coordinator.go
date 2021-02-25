@@ -14,12 +14,10 @@ func main() {
 	addr := flag.String("a", "127.0.0.1:1234", "Local address to listen on")
 	flag.Parse()
 
-	c := coordinator.Coordinator{
-		Address:   *addr,
-		Transport: netrpc.NewNodeClient,
-	}
+	c := coordinator.New(*addr)
+	c.Transport = netrpc.NewNodeClient
 
-	binding := netrpc.CoordinatorBinding{Svc: &c}
+	binding := netrpc.CoordinatorBinding{Svc: c}
 	if err := rpc.RegisterName("RPC", &binding); err != nil {
 		log.Fatal(err)
 	}

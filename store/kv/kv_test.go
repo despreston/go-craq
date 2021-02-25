@@ -61,7 +61,7 @@ func TestRead(t *testing.T) {
 
 			got, err := s.Read(tt.key)
 			if want := tt.item; !reflect.DeepEqual(want, got) {
-				t.Fatalf(
+				t.Errorf(
 					"unexpected item\n  test: %s\n  want: %#v\n  got: %#v",
 					tt.id,
 					want,
@@ -69,7 +69,7 @@ func TestRead(t *testing.T) {
 				)
 			}
 			if err != tt.err {
-				t.Fatalf(
+				t.Errorf(
 					"unexpected error\n  test: %s\n  want: %#v\n  got: %#v",
 					tt.id,
 					tt.err,
@@ -129,7 +129,7 @@ func TestKVReadVersion(t *testing.T) {
 
 			got, err := s.ReadVersion(tt.key, tt.version)
 			if want := tt.item; !reflect.DeepEqual(want, got) {
-				t.Fatalf(
+				t.Errorf(
 					"unexpected item\n  test: %s\n  want: %#v\n  got: %#v",
 					tt.id,
 					want,
@@ -137,7 +137,7 @@ func TestKVReadVersion(t *testing.T) {
 				)
 			}
 			if err != tt.err {
-				t.Fatalf(
+				t.Errorf(
 					"unexpected error\n  test: %s\n  want: %#v\n  got: %#v",
 					tt.id,
 					tt.err,
@@ -151,7 +151,7 @@ func TestKVReadVersion(t *testing.T) {
 func TestKVWrite(t *testing.T) {
 	s := New()
 	if err := s.Write("hello", []byte("world"), 1); err != nil {
-		t.Fatalf("unexpected error\n  want: %#v\n  got: %#v", nil, err)
+		t.Fatalf("Write(hello) unexpected error\n  want: %#v\n  got: %#v", nil, err)
 	}
 
 	got := s.items["hello"][0]
@@ -163,7 +163,7 @@ func TestKVWrite(t *testing.T) {
 	}
 
 	if reflect.DeepEqual(want, got) {
-		t.Fatalf("unexpected item\n  want: %#v\n  got: %#v", want, got)
+		t.Errorf("Write() unexpected item\n  want: %#v\n  got: %#v", want, got)
 	}
 }
 
@@ -172,7 +172,7 @@ func TestKVCommit(t *testing.T) {
 
 	want := store.ErrNotFound
 	if got := s.Commit("whatever", 1); got != want {
-		t.Fatalf("unexpected error\n  want: %#v\n  got: %#v", want, got)
+		t.Fatalf("Commit(whatever) unexpected error\n  want: %#v\n  got: %#v", want, got)
 	}
 
 	s.items["hello"] = append(
@@ -182,14 +182,14 @@ func TestKVCommit(t *testing.T) {
 	)
 
 	if err := s.Commit("hello", 2); err != nil {
-		t.Fatalf("unexpected error\n  want: %#v\n  got: %#v", nil, err)
+		t.Errorf("Commit(whatever, 2) unexpected error\n  want: %#v\n  got: %#v", nil, err)
 	}
 
 	if len(s.items["hello"]) != 1 {
-		t.Fatalf("expected old items to be cleared")
+		t.Errorf("Commit(whatever, 2) expected old items to be cleared")
 	}
 
 	if item := s.items["hello"][0]; item.Version != 2 || !item.Committed {
-		t.Fatalf("expected item to be committed")
+		t.Errorf("Commit(whatever, 2) expected item to be committed")
 	}
 }
