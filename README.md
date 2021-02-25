@@ -68,6 +68,12 @@ Basic CLI tool for interacting with the chain. Allows writes and reads. The one
 included in this project uses the net/rpc package as the transport layer and
 bbolt as the storage layer.
 
+#### Usage
+```sh
+./client write hello world # Write a new entry for key 'hello'
+./client read hello # read the latest committed version of key 'hello'
+```
+
 ## Communication
 _go-craq_ processes communicate via RPC. The project is designed to be used with
 whatever RPC system shall be desired. The basic default client included in the
@@ -125,7 +131,7 @@ changes.
 Coordinator uses to send writes to the head node. This is where the chain begins
 the process of propagation.
 
-## FAQ
+## Q/A
 ### What happens during a write?
 A write request containing the key and value are sent to the Coordinator via the
 Coordinator's `Write` RPC method. If the chain is not empty, the Coordinator
