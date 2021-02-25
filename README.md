@@ -157,3 +157,49 @@ tail sends a `Commit` RPC method to it's predecessor. The tail's predecessor
 commits that version of the item, then continues to forward the `Commit` message
 backwards through the chain, one node at a time, until every node has committed
 the version.
+
+### What happens when a new node joins the chain?
+When the `node.Start` method is run, the Node will backfill it's list of latest
+versions for all committed items in it's store, then it'll connect to the
+coordinator. Each Node stores the latest version of each committed item in it's
+store in-memory. This is done so that if the node is or becomes the tail node,
+other nodes can query it for the latest committed version of an item. The
+resources at the top of the readme provide some info on why this is important,
+but basically it helps ensure strong consistency.
+
+After backfilling the map of latest versions the Node connects to the
+Coordinator. The Coordinator adds the new Node to the list of Nodes in the
+chain, connects to the Node, responds with some metadata for the new Node, then
+sends updated metadata to the rest of the nodes in the chain to let it know
+there's a new tail.
+
+The metadata that the Coordinator sends back to the new Node includes info to
+let the Node know if it's the head, the tail, and who it's predecessor in the
+chain is. The Node uses this info to connect to the predecessor in the chain.
+
+After connecting to the predecessor, the Node asks the predecessor for all items
+it has that a) the Node has no record of, or b) the Node has older versions of.
+This ensures that the new Node is caught up with the chain. Because the new node
+is now the tail, any uncommitted items sent during propagation are immediately
+committed.
+
+Once the Node is connected to it's neighbor and the coordinator, it starts
+listening for RPCs. The RPC server is setup and started in [cmd/node](cmd/node).
+
+### Why store the latest committed versions in-memory?
+It's worth mentioning that CRAQ works best with read-heavy workloads. One of
+it's best "features" is being able to read from any node in the chain. If a node
+receives a read request for key Y and the latest version of key Y in the store
+is not committed, the node will send a request to the tail to ask for the latest
+committed version of key Y; this helps ensure that all reads to any node returns
+the same value. In other words, it asserts strong consistency. As the chain
+grows, it takes longer for an item to be committed and the probability of
+needing to ask the tail for the latest version rises. Asking the tail for the
+latest version can quickly become a bottleneck. Therefore, storing these latest
+versions in-memory affords us higher throughput from the tail for requests for
+the latest version at the expense of slower startup times because the tail needs
+to backfill it's map of latest versions.
+
+In the future, it may be beneficial to let the operator of the node signify
+whether they'd like to backfill at startup or serve 'latest version' requests
+directly from the store.
