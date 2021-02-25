@@ -225,3 +225,35 @@ func TestNewTailCommitDirty(t *testing.T) {
 		t.Fatal("Timeout waiting for propagation")
 	}
 }
+
+// Node has committed items in the store and needs to backfill it's map of
+// latest versions.
+func TestBackfill(t *testing.T) {
+	c := &FakeCoordinator{Coordinator: coordinator.New("coordinator")}
+
+	n := New(Opts{
+		Address:           "node",
+		CdrAddress:        "coordinator",
+		PubAddress:        "node-public",
+		Transport:         func() transport.NodeClient { return &FakeNode{} },
+		CoordinatorClient: c,
+		Store:             kv.New(),
+	})
+
+	n.store.Write("hello", []byte("world"), 1)
+	n.store.Commit("hello", 1)
+
+	c.Coordinator.Transport = func() transport.NodeClient {
+		return &FakeNode{Node: n}
+	}
+
+	if err := n.Start(); err != nil {
+		t.Errorf("Start() unexpected error\n  got: %#v", err.Error())
+	}
+
+	if k, ver, err := n.LatestVersion("hello"); err != nil {
+		t.Errorf("LatestVersion(hello) unexpected error %#v", err)
+	} else if k != "hello" || ver != 1 {
+		t.Errorf("LatestVersion(hello) = %s, %d, nil. Want hello, 1, nil", k, ver)
+	}
+}

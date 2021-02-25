@@ -81,7 +81,26 @@ func New(opts Opts) *Node {
 
 // ListenAndServe starts listening for messages and connects to the coordinator.
 func (n *Node) Start() error {
-	return n.connectToCoordinator()
+	if err := n.backfillLatest(); err != nil {
+		log.Fatalf("Failed to backfill latest versions.\n Error: %#v", err)
+	}
+	if err := n.connectToCoordinator(); err != nil {
+		log.Fatalf("Failed to connect to the chain.\n Error: %#v", err)
+	}
+	return nil
+}
+
+// backfillLatest queries the store for the latest committed version of
+// everything it has in order to fill n.latest.
+func (n *Node) backfillLatest() error {
+	c, err := n.store.AllCommitted()
+	if err != nil {
+		return err
+	}
+	for _, item := range c {
+		n.latest[item.Key] = item.Version
+	}
+	return nil
 }
 
 // ConnectToCoordinator let's the Node announce itself to the chain coordinator
@@ -138,7 +157,8 @@ func (n *Node) fullPropagate() error {
 }
 
 func (n *Node) connectToNode(address string, pos craqrpc.NeighborPos) error {
-	if err := n.transport().Connect(address); err != nil {
+	newNbr := n.transport()
+	if err := newNbr.Connect(address); err != nil {
 		return err
 	}
 
@@ -151,7 +171,7 @@ func (n *Node) connectToNode(address string, pos craqrpc.NeighborPos) error {
 	}
 
 	n.neighbors[pos] = neighbor{
-		rpc:     n.transport(),
+		rpc:     newNbr,
 		address: address,
 	}
 
@@ -204,8 +224,9 @@ func (n *Node) commitPropagated(reply *transport.PropagateResponse) error {
 					if err := n.commit(key, item.Version); err != nil {
 						return err
 					}
+				} else {
+					return err
 				}
-				return err
 			}
 		}
 	}
