@@ -6,6 +6,16 @@
 
 package transport
 
+// Position of neighbor node on the chain. Head nodes have no previous
+// neighbors, and tail nodes have no next neighbors.
+type NeighborPos int
+
+const (
+	NeighborPosPrev NeighborPos = iota
+	NeighborPosNext
+	NeighborPosTail
+)
+
 // CoordinatorService is the API provided by the Coordinator.
 type CoordinatorService interface {
 	AddNode(address string) (*NodeMeta, error)

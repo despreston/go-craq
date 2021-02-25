@@ -7,7 +7,6 @@ import (
 	"log"
 	"sync"
 
-	"github.com/despreston/go-craq/craqrpc"
 	"github.com/despreston/go-craq/store"
 	"github.com/despreston/go-craq/transport"
 )
@@ -45,7 +44,7 @@ type commitEvent struct {
 // responsible for storing data and handling reads/writes.
 type Node struct {
 	// Other nodes in the chain
-	neighbors map[craqrpc.NeighborPos]neighbor
+	neighbors map[transport.NeighborPos]neighbor
 	// Storage layer
 	store store.Storer
 	// Latest version of a given key
@@ -68,7 +67,7 @@ func New(opts Opts) *Node {
 	}
 	return &Node{
 		latest:     make(map[string]uint64),
-		neighbors:  make(map[craqrpc.NeighborPos]neighbor, 3),
+		neighbors:  make(map[transport.NeighborPos]neighbor, 3),
 		cdrAddress: opts.CdrAddress,
 		address:    opts.Address,
 		store:      opts.Store,
@@ -126,20 +125,20 @@ func (n *Node) connectToCoordinator() error {
 
 	n.IsHead = reply.IsHead
 	n.IsTail = reply.IsTail
-	n.neighbors[craqrpc.NeighborPosTail] = neighbor{address: reply.Tail}
+	n.neighbors[transport.NeighborPosTail] = neighbor{address: reply.Tail}
 
 	// Connect to predecessor
 	if reply.Prev != "" {
-		if err := n.connectToNode(reply.Prev, craqrpc.NeighborPosPrev); err != nil {
+		if err := n.connectToNode(reply.Prev, transport.NeighborPosPrev); err != nil {
 			n.log.Printf("Failed to connect to node in ConnectToCoordinator. %v\n", err)
 			return err
 		}
 		if err := n.fullPropagate(); err != nil {
 			return err
 		}
-	} else if n.neighbors[craqrpc.NeighborPosPrev].address != "" {
+	} else if n.neighbors[transport.NeighborPosPrev].address != "" {
 		// Close the connection to the previous predecessor.
-		n.neighbors[craqrpc.NeighborPosPrev].rpc.Close()
+		n.neighbors[transport.NeighborPosPrev].rpc.Close()
 	}
 
 	return nil
@@ -149,14 +148,14 @@ func (n *Node) connectToCoordinator() error {
 // caught up. Forward propagation should go first so that it has all the dirty
 // items needed before receiving backwards propagation response.
 func (n *Node) fullPropagate() error {
-	prevNeighbor := n.neighbors[craqrpc.NeighborPosPrev].rpc
+	prevNeighbor := n.neighbors[transport.NeighborPosPrev].rpc
 	if err := n.requestFwdPropagation(prevNeighbor); err != nil {
 		return err
 	}
 	return n.requestBackPropagation(prevNeighbor)
 }
 
-func (n *Node) connectToNode(address string, pos craqrpc.NeighborPos) error {
+func (n *Node) connectToNode(address string, pos transport.NeighborPos) error {
 	newNbr := n.transport()
 	if err := newNbr.Connect(address); err != nil {
 		return err
@@ -280,7 +279,7 @@ func (n *Node) requestBackPropagation(client transport.NodeClient) error {
 }
 
 // resetNeighbor closes any open connection and resets the neighbor.
-func (n *Node) resetNeighbor(pos craqrpc.NeighborPos) {
+func (n *Node) resetNeighbor(pos transport.NeighborPos) {
 	n.neighbors[pos].rpc.Close()
 	n.neighbors[pos] = neighbor{}
 }
@@ -291,44 +290,44 @@ func (n *Node) Ping() error {
 }
 
 func (n *Node) connectToPredecessor(address string) error {
-	prev := n.neighbors[craqrpc.NeighborPosPrev]
+	prev := n.neighbors[transport.NeighborPosPrev]
 
 	if prev.address == address {
 		n.log.Println("New predecessor same address as last one, keeping conn.")
 		return nil
 	} else if address == "" {
 		n.log.Println("Resetting predecessor")
-		n.resetNeighbor(craqrpc.NeighborPosPrev)
+		n.resetNeighbor(transport.NeighborPosPrev)
 		return nil
 	}
 
 	n.log.Printf("connecting to new predecessor %s\n", address)
-	if err := n.connectToNode(address, craqrpc.NeighborPosPrev); err != nil {
+	if err := n.connectToNode(address, transport.NeighborPosPrev); err != nil {
 		return err
 	}
 
-	prevC := n.neighbors[craqrpc.NeighborPosPrev].rpc
+	prevC := n.neighbors[transport.NeighborPosPrev].rpc
 	return n.requestFwdPropagation(prevC)
 }
 
 func (n *Node) connectToSuccessor(address string) error {
-	next := n.neighbors[craqrpc.NeighborPosNext]
+	next := n.neighbors[transport.NeighborPosNext]
 
 	if next.address == address {
 		n.log.Println("New successor same address as last one, keeping conn.")
 		return nil
 	} else if address == "" {
 		n.log.Println("Resetting successor")
-		n.resetNeighbor(craqrpc.NeighborPosNext)
+		n.resetNeighbor(transport.NeighborPosNext)
 		return nil
 	}
 
 	n.log.Printf("connecting to new successor %s\n", address)
-	if err := n.connectToNode(address, craqrpc.NeighborPosNext); err != nil {
+	if err := n.connectToNode(address, transport.NeighborPosNext); err != nil {
 		return err
 	}
 
-	nextC := n.neighbors[craqrpc.NeighborPosNext].rpc
+	nextC := n.neighbors[transport.NeighborPosNext].rpc
 	return n.requestBackPropagation(nextC)
 }
 
@@ -348,9 +347,9 @@ func (n *Node) Update(meta *transport.NodeMeta) error {
 	}
 
 	// connect to tail if address is different
-	tail := n.neighbors[craqrpc.NeighborPosTail]
+	tail := n.neighbors[transport.NeighborPosTail]
 	if !meta.IsTail && tail.address != meta.Tail && meta.Tail != "" {
-		err := n.connectToNode(meta.Tail, craqrpc.NeighborPosTail)
+		err := n.connectToNode(meta.Tail, transport.NeighborPosTail)
 		if err != nil {
 			return err
 		}
@@ -404,7 +403,7 @@ func (n *Node) ClientWrite(key string, val []byte) error {
 
 	// Forward the new object to the successor node.
 
-	next := n.neighbors[craqrpc.NeighborPosNext]
+	next := n.neighbors[transport.NeighborPosNext]
 
 	// If there's no successor, it means this is the only node in the chain, so
 	// mark the item as committed and return early.
@@ -439,7 +438,7 @@ func (n *Node) Write(key string, val []byte, version uint64) error {
 	// If this isn't the tail node, the write needs to be forwarded along the
 	// chain to the next node.
 	if !n.IsTail {
-		next := n.neighbors[craqrpc.NeighborPosNext]
+		next := n.neighbors[transport.NeighborPosNext]
 		if err := next.rpc.Write(key, val, version); err != nil {
 			n.log.Printf("Failed to send to successor during Write. %v\n", err)
 			return err
@@ -467,7 +466,7 @@ func (n *Node) commitAndSend(key string, version uint64) error {
 	}
 
 	// if this node has a predecessor, send commit to previous node
-	if n.neighbors[craqrpc.NeighborPosPrev].address != "" {
+	if n.neighbors[transport.NeighborPosPrev].address != "" {
 		return n.sendCommitToPrev(key, version)
 	}
 
@@ -475,7 +474,7 @@ func (n *Node) commitAndSend(key string, version uint64) error {
 }
 
 func (n *Node) sendCommitToPrev(key string, version uint64) error {
-	prev := n.neighbors[craqrpc.NeighborPosPrev]
+	prev := n.neighbors[transport.NeighborPosPrev]
 	if err := prev.rpc.Commit(key, version); err != nil {
 		n.log.Printf("Failed to send Commit to predecessor. %v\n", err)
 		return err
@@ -537,7 +536,7 @@ func (n *Node) ReadAll() (*[]transport.Item, error) {
 }
 
 func (n *Node) getLatestVersion(key string) (uint64, error) {
-	_, v, err := n.neighbors[craqrpc.NeighborPosTail].rpc.LatestVersion(key)
+	_, v, err := n.neighbors[transport.NeighborPosTail].rpc.LatestVersion(key)
 	return v, err
 }
 
