@@ -10,6 +10,8 @@ added to the system. Network chatter is significantly lower compared to Raft and
 Paxos.
 
 ### Learn more about CRAQ
+[CRAQ Paper](https://pdos.csail.mit.edu/6.824/papers/craq.pdf)
+
 [Chain Replication: How to Build an Effective KV Storage](https://medium.com/coinmonks/chain-replication-how-to-build-an-effective-kv-storage-part-1-2-b0ce10d5afc3)
 
 [MIT 6.824 Distributed Systems Lecture on CRAQ (80mins)](http://nil.csail.mit.edu/6.824/2020/video/9.html)
