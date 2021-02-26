@@ -1,4 +1,4 @@
-# go-craq [![Test Status](https://github.com/despreston/go-craq/workflows/Test/badge.svg)](https://github.com/despreston/go-craq/actions)
+# go-craq [![Test Status](https://github.com/despreston/go-craq/workflows/Test/badge.svg)](https://github.com/despreston/go-craq/actions)  [![Go Reference](https://pkg.go.dev/badge/github.com/despreston/go-craq.svg)](https://pkg.go.dev/github.com/despreston/go-craq)
 
 Package `go-craq` implements CRAQ (Chain Replication with Apportioned Queries)
 as described in [the CRAQ paper](https://pdos.csail.mit.edu/6.824/papers/craq.pdf). MIT Licensed.
@@ -38,9 +38,7 @@ Write |     +------------------+
 ## Processes
 There are 3 packages that should be started to run the chain. The default node
 implementation in [cmd/node](cmd/node) uses the Go net/rpc package and
-[bbolt](go.etcd.io/bbolt) for storage. [store/kv](store/kv) package is a
-_very simple_ in-memory key/value store that is included as an example to work
-off of when adding new storage implementations.
+[bbolt](go.etcd.io/bbolt) for storage.
 
 ### Coordinator
 Facilitates new writes to the chain; allows nodes to announce themselves to the
@@ -96,7 +94,9 @@ through [transport/transport.go](transport/transport.go). Use
 _go-craq_ is designed to make it easy to swap the persistance layer. CRAQ is
 flexible and any storage unit that implements the `Storer` interface in
 [store/store.go](store/store.go) can be used. Some implementations for common
-storage projects can be found in the `store` package.
+storage projects can be found in the `store` package. [store/kv](store/kv)
+package is a _very simple_ in-memory key/value store that is included as an
+example to work off of when adding new storage implementations.
 
 ### Adding a New Storage Implementation
 Pull requests for additional storage implementations are very welcome. Start by
@@ -122,18 +122,18 @@ func TestStorer(t *testing.T) {
 There are several places to start that'll give you a great understanding of how
 things work.
 
-`ConnectToCoordinator` method in [node/node.go](node/node.go). This is the
+`connectToCoordinator` method in [node/node.go](node/node.go). This is the
 method the Node must run during startup to connect to the Coordinator and
 announce itself to the chain. The Coordinator responds with some metadata about
 where in the chain the node is now located. The node uses this info to connect
 to the predecessor in the chain.
 
-`Update` method in [node/rpc.go](node/rpc.go). This is the method the
+`Update` method in [node/node.go](node/node.go). This is the method the
 Coordinator uses to update the node's metadata. New data is sent to the node if
 the node's predecessor or successor changes, and if the address of the tail node
 changes.
 
-`ClientWrite` method in [node/rpc.go](node/rpc.go). This is the method the
+`ClientWrite` method in [node/node.go](node/node.go). This is the method the
 Coordinator uses to send writes to the head node. This is where the chain begins
 the process of propagation.
 
