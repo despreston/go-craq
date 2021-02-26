@@ -50,9 +50,8 @@ func (cdr *Coordinator) Start() {
 	cdr.pingReplicas()
 }
 
-// Ping each node. If the response is !Ok or the pingTimeout is reached, remove
-// the node from the list of replicas. This method should be called shortly
-// after creating a new Coordinator.
+// Ping each node. If the response returns an error or the pingTimeout is
+// reached, remove the node from the list of replicas.
 func (cdr *Coordinator) pingReplicas() {
 	log.Println("starting pinging")
 	for {
