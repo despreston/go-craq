@@ -205,3 +205,9 @@ to backfill it's map of latest versions.
 In the future, it may be beneficial to let the operator of the node signify
 whether they'd like to backfill at startup or serve 'latest version' requests
 directly from the store.
+
+## Backlog
+- [ ] Benchmarks based off the tests in the paper, as close as reasonably possible.
+- [ ] gRPC transporter
+- [ ] HTTP transporter
+- [ ] Support for more types of values (binaries, multi-word strings, etc)
