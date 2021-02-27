@@ -215,7 +215,7 @@ func (cdr *Coordinator) AddNode(address string) (*transport.NodeMeta, error) {
 		cdr.Updates.Add(1)
 		go func(i int) {
 			cdr.updateNode(i)
-			defer cdr.Updates.Done()
+			cdr.Updates.Done()
 		}(i)
 	}
 
