@@ -92,7 +92,7 @@ func (cdr *Coordinator) updateAll() {
 	for i := 0; i < len(cdr.replicas); i++ {
 		wg.Add(1)
 		go func(i int) {
-			cdr.UpdateNode(i)
+			cdr.updateNode(i)
 			wg.Done()
 		}(i)
 	}
@@ -127,7 +127,7 @@ func (cdr *Coordinator) RemoveNode(address string) error {
 	// After removing the node, the successor, if there was one, now sits at idx
 	// in the chain. Send a message to that node to update it's metadata.
 	if len(cdr.replicas) > idx {
-		err := cdr.UpdateNode(idx)
+		err := cdr.updateNode(idx)
 		if err != nil {
 			log.Printf("Failed to update successor: %s\n", err.Error())
 			return err
@@ -136,7 +136,7 @@ func (cdr *Coordinator) RemoveNode(address string) error {
 
 	// Send update to predecessor and update the tail
 	if idx > 0 {
-		err := cdr.UpdateNode(idx - 1)
+		err := cdr.updateNode(idx - 1)
 		if err != nil {
 			log.Printf("Failed to update predecessor: %v\n", err)
 			return err
@@ -146,9 +146,9 @@ func (cdr *Coordinator) RemoveNode(address string) error {
 	return nil
 }
 
-// UpdateNode sends the latest metadata to a Node to tell it whether it's head
+// updateNode sends the latest metadata to a Node to tell it whether it's head
 // or tail and what it's neighbors' addresses are.
-func (cdr *Coordinator) UpdateNode(i int) error {
+func (cdr *Coordinator) updateNode(i int) error {
 	n := cdr.replicas[i]
 
 	log.Printf("Sending metadata to %s.\n", n.Address())
@@ -214,7 +214,7 @@ func (cdr *Coordinator) AddNode(address string) (*transport.NodeMeta, error) {
 	for i := 0; i < len(cdr.replicas)-1; i++ {
 		cdr.Updates.Add(1)
 		go func(i int) {
-			cdr.UpdateNode(i)
+			cdr.updateNode(i)
 			defer cdr.Updates.Done()
 		}(i)
 	}
