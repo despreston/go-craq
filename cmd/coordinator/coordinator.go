@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	addr := flag.String("a", "127.0.0.1:1234", "Local address to listen on")
+	addr := flag.String("a", ":1234", "Local address to listen on")
 	flag.Parse()
 
 	c := coordinator.New(*addr)

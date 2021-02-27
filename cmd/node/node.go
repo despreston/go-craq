@@ -14,9 +14,9 @@ import (
 func main() {
 	var addr, pub, cdr, dbFile string
 
-	flag.StringVar(&addr, "a", "127.0.0.1:1235", "Local address to listen on")
-	flag.StringVar(&pub, "p", "127.0.0.1:1235", "Public address reachable by coordinator and other nodes")
-	flag.StringVar(&cdr, "c", "127.0.0.1:1234", "Coordinator address")
+	flag.StringVar(&addr, "a", ":1235", "Local address to listen on")
+	flag.StringVar(&pub, "p", ":1235", "Public address reachable by coordinator and other nodes")
+	flag.StringVar(&cdr, "c", ":1234", "Coordinator address")
 	flag.StringVar(&dbFile, "f", "craq.db", "Bolt DB database file")
 	flag.Parse()
 

@@ -10,8 +10,8 @@ import (
 func main() {
 	var cdr, node string
 
-	flag.StringVar(&cdr, "c", "192.168.0.30:1234", "coordinator address")
-	flag.StringVar(&node, "n", "192.168.0.30:1235", "node address to read from")
+	flag.StringVar(&cdr, "c", ":1234", "coordinator address")
+	flag.StringVar(&node, "n", ":1235", "node address to read from")
 	flag.Parse()
 
 	args := flag.Args()

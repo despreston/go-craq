@@ -49,7 +49,7 @@ that's outside the scope of this project.
 
 #### Run Flags
 ```sh
--a # Local address to listen on. Default: 127.0.0.1:1234
+-a # Local address to listen on. Default: :1234
 ```
 
 ### Node
@@ -60,10 +60,9 @@ storage unit.
 
 #### Run Flags
 ```sh
--a # Local address to listen on. Default: 127.0.0.01:1235
--p # Public address reachable by coordinator and the other nodes. Default:
-127.0.0.1:1235
--c # Coordinator address. Default: 127.0.0.1:1234
+-a # Local address to listen on. Default: :1235
+-p # Public address reachable by coordinator and the other nodes. Default: :1235
+-c # Coordinator address. Default: :1234
 -f # Bolt DB database file. Default: craq.db
 ```
 
