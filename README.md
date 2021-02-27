@@ -73,7 +73,7 @@ bbolt as the storage layer.
 
 #### Usage
 ```sh
-./client write hello world # Write a new entry for key 'hello'
+./client write hello "world" # Write a new entry for key 'hello'
 ./client read hello # read the latest committed version of key 'hello'
 ```
 

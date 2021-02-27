@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"strings"
 
 	"github.com/despreston/go-craq/transport/netrpc"
 )
@@ -52,7 +53,7 @@ func main() {
 		if len(args) < 3 {
 			log.Fatal("No value given.")
 		}
-		val := args[2]
+		val := strings.Join(args[2:], " ")
 		c := netrpc.NewCoordinatorClient()
 		c.Connect(cdr)
 		log.Println(c.Write(key, []byte(val)))
