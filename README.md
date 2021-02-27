@@ -209,4 +209,4 @@ directly from the store.
 - [ ] Benchmarks based off the tests in the paper, as close as reasonably possible.
 - [ ] gRPC transporter
 - [ ] HTTP transporter
-- [ ] Support for more types of values (binaries, multi-word strings, etc)
+- [ ] Allow nodes to join at any location in the chain.
