@@ -116,7 +116,7 @@ func (b *Bolt) Commit(key string, version uint64) error {
 		result := bucket.Get(k)
 
 		if result == nil {
-			return fmt.Errorf("no item for key %s so can't commit", key)
+			return store.ErrNotFound
 		}
 
 		items, err := store.DecodeMany(result)
@@ -131,6 +131,7 @@ func (b *Bolt) Commit(key string, version uint64) error {
 			if itm.Version == version {
 				itm.Committed = true
 				older = i - 1
+				break
 			}
 		}
 
