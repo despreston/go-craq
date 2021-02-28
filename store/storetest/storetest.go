@@ -76,8 +76,7 @@ func testReadDirty(t *testing.T, s store.Storer) {
 		t.Fatalf("Write(hello, world, 1) unexpected error\n  got: %#v", err)
 	}
 
-	want := store.ErrDirtyItem
-	if _, err := s.Read(itm.Key); err != want {
+	if _, err := s.Read(itm.Key); err != store.ErrDirtyItem {
 		t.Fatalf("Read(hello) unexpected error\n  got: %#v", err)
 	}
 }
