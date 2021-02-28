@@ -48,14 +48,14 @@ func assertItem(t *testing.T, n *Node, kWant string, vWant []byte) {
 
 func setupTwoNodeChain() (*Node, *Node, *FakeCoordinator) {
 	var n, n2 *Node
-	c := &FakeCoordinator{Coordinator: coordinator.New("coordinator")}
+	var c FakeCoordinator
 
 	n = New(Opts{
 		Address:           "a",
 		CdrAddress:        "coordinator",
 		PubAddress:        "nodea-public",
 		Store:             kv.New(),
-		CoordinatorClient: c,
+		CoordinatorClient: &c,
 		Transport: func() transport.NodeClient {
 			return &FakeNode{Node: n2}
 		},
@@ -66,13 +66,13 @@ func setupTwoNodeChain() (*Node, *Node, *FakeCoordinator) {
 		CdrAddress:        "coordinator",
 		PubAddress:        "nodeb-public",
 		Store:             kv.New(),
-		CoordinatorClient: c,
+		CoordinatorClient: &c,
 		Transport: func() transport.NodeClient {
 			return &FakeNode{Node: n}
 		},
 	})
 
-	c.Coordinator.Transport = func() transport.NodeClient {
+	tport := func() transport.NodeClient {
 		// In order to send messages to the right node. n2 connects after n
 		defer func() { c.clientCount++ }()
 		if c.clientCount == 0 {
@@ -81,23 +81,26 @@ func setupTwoNodeChain() (*Node, *Node, *FakeCoordinator) {
 		return &FakeNode{Node: n2}
 	}
 
-	return n, n2, c
+	c = FakeCoordinator{Coordinator: coordinator.New(tport)}
+	return n, n2, &c
 }
 
 func TestStart(t *testing.T) {
-	c := &FakeCoordinator{Coordinator: coordinator.New("coordinator")}
+	var c FakeCoordinator
 
 	n := New(Opts{
 		Address:           "node",
 		CdrAddress:        "coordinator",
 		PubAddress:        "node-public",
 		Transport:         func() transport.NodeClient { return &FakeNode{} },
-		CoordinatorClient: c,
+		CoordinatorClient: &c,
 		Store:             kv.New(),
 	})
 
-	c.Coordinator.Transport = func() transport.NodeClient {
-		return &FakeNode{Node: n}
+	c = FakeCoordinator{
+		Coordinator: coordinator.New(func() transport.NodeClient {
+			return &FakeNode{Node: n}
+		}),
 	}
 
 	if err := n.Start(); err != nil {
@@ -231,23 +234,25 @@ func TestNewTailCommitDirty(t *testing.T) {
 // Node has committed items in the store and needs to backfill it's map of
 // latest versions.
 func TestBackfill(t *testing.T) {
-	c := &FakeCoordinator{Coordinator: coordinator.New("coordinator")}
+	var c FakeCoordinator
 
 	n := New(Opts{
 		Address:           "node",
 		CdrAddress:        "coordinator",
 		PubAddress:        "node-public",
 		Transport:         func() transport.NodeClient { return &FakeNode{} },
-		CoordinatorClient: c,
+		CoordinatorClient: &c,
 		Store:             kv.New(),
 	})
 
+	c = FakeCoordinator{
+		Coordinator: coordinator.New(func() transport.NodeClient {
+			return &FakeNode{Node: n}
+		}),
+	}
+
 	n.store.Write("hello", []byte("world"), 1)
 	n.store.Commit("hello", 1)
-
-	c.Coordinator.Transport = func() transport.NodeClient {
-		return &FakeNode{Node: n}
-	}
 
 	if err := n.Start(); err != nil {
 		t.Errorf("Start() unexpected error\n  got: %#v", err.Error())

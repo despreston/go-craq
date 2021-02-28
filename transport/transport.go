@@ -53,6 +53,8 @@ type CoordinatorClient interface {
 	CoordinatorService
 }
 
+// NodeClientFactory is for creating NodeClients. The Coordinator and Node
+// services use when creating new connections to nodes.
 type NodeClientFactory func() NodeClient
 
 // ----------------------------------------------------------------------------

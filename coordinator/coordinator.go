@@ -27,9 +27,7 @@ var ErrEmptyChain = errors.New("no nodes in the chain")
 
 // Coordinator is responsible for tracking the Nodes in the chain.
 type Coordinator struct {
-	// Local listening address
-	Address    string
-	Transport  transport.NodeClientFactory
+	tport      transport.NodeClientFactory
 	head, tail *node
 	mu         sync.Mutex
 	replicas   []*node
@@ -39,10 +37,10 @@ type Coordinator struct {
 	Updates *sync.WaitGroup
 }
 
-func New(addr string) *Coordinator {
+func New(t transport.NodeClientFactory) *Coordinator {
 	return &Coordinator{
 		Updates: &sync.WaitGroup{},
-		Address: addr,
+		tport:   t,
 	}
 }
 
@@ -188,7 +186,7 @@ func (cdr *Coordinator) AddNode(address string) (*transport.NodeMeta, error) {
 	n := &node{
 		last:    time.Now(),
 		address: address,
-		rpc:     cdr.Transport(),
+		rpc:     cdr.tport(),
 	}
 
 	if err := n.Connect(); err != nil {

@@ -11,11 +11,10 @@ import (
 )
 
 func main() {
-	addr := flag.String("a", ":1234", "Local address to listen on")
+	addr := *flag.String("a", ":1234", "Local address to listen on")
 	flag.Parse()
 
-	c := coordinator.New(*addr)
-	c.Transport = netrpc.NewNodeClient
+	c := coordinator.New(netrpc.NewNodeClient)
 
 	binding := netrpc.CoordinatorBinding{Svc: c}
 	if err := rpc.RegisterName("RPC", &binding); err != nil {
@@ -27,6 +26,6 @@ func main() {
 	go c.Start()
 
 	// Start the rpc server
-	log.Println("Listening at " + c.Address)
-	log.Fatal(http.ListenAndServe(c.Address, nil))
+	log.Println("Listening at " + addr)
+	log.Fatal(http.ListenAndServe(addr, nil))
 }
