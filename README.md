@@ -71,6 +71,12 @@ Basic CLI tool for interacting with the chain. Allows writes and reads. The one
 included in this project uses the net/rpc package as the transport layer and
 bbolt as the storage layer.
 
+#### Run Flags
+```sh
+-c # Address of coordinator. Default: :1234
+-n # Address of node to send reads to. Default: :1235
+```
+
 #### Usage
 ```sh
 ./client write hello "world" # Write a new entry for key 'hello'
