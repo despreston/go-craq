@@ -233,10 +233,13 @@ func (n *Node) commitPropagated(reply *transport.PropagateResponse) error {
 	return nil
 }
 
+// Create a map of the highest versions for each key.
 func propagateRequestFromItems(items []*store.Item) *transport.PropagateRequest {
 	req := transport.PropagateRequest{}
 	for _, item := range items {
-		req[item.Key] = append(req[item.Key], item.Version)
+		if req[item.Key] < item.Version {
+			req[item.Key] = item.Version
+		}
 	}
 	return &req
 }
@@ -554,7 +557,7 @@ func (n *Node) LatestVersion(key string) (string, uint64, error) {
 func (n *Node) BackPropagate(
 	verByKey *transport.PropagateRequest,
 ) (*transport.PropagateResponse, error) {
-	unseen, err := n.store.AllNewerCommitted(map[string][]uint64(*verByKey))
+	unseen, err := n.store.AllNewerCommitted(map[string]uint64(*verByKey))
 	if err != nil {
 		return nil, err
 	}
@@ -569,7 +572,7 @@ func (n *Node) BackPropagate(
 func (n *Node) FwdPropagate(
 	verByKey *transport.PropagateRequest,
 ) (*transport.PropagateResponse, error) {
-	unseen, err := n.store.AllNewerDirty(map[string][]uint64(*verByKey))
+	unseen, err := n.store.AllNewerDirty(map[string]uint64(*verByKey))
 	if err != nil {
 		return nil, err
 	}

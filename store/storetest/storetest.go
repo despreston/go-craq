@@ -134,7 +134,7 @@ func testAllNewerCommitted(t *testing.T, s store.Storer) {
 	s.Commit("hello", uint64(2))
 	items[1].Committed = true
 
-	in := map[string][]uint64{"hello": []uint64{0}}
+	in := map[string]uint64{"hello": 0}
 	got, err := s.AllNewerCommitted(in)
 	if err != nil {
 		t.Fatalf(
@@ -150,7 +150,7 @@ func testAllNewerCommitted(t *testing.T, s store.Storer) {
 	s.Commit("another", uint64(1))
 	items[2].Committed = true
 
-	in = map[string][]uint64{"hello": []uint64{2}}
+	in = map[string]uint64{"hello": 2}
 	got, err = s.AllNewerCommitted(in)
 	if err != nil {
 		t.Fatalf(
@@ -193,7 +193,7 @@ func testAllNewerDirty(t *testing.T, s store.Storer) {
 	}
 
 	s.Commit("another", items[1].Version)
-	in := map[string][]uint64{"hello": []uint64{1}}
+	in := map[string]uint64{"hello": 1}
 	got, err := s.AllNewerDirty(in)
 
 	if err != nil {

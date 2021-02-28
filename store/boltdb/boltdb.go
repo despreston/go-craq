@@ -176,9 +176,7 @@ func (b *Bolt) ReadVersion(key string, version uint64) (*store.Item, error) {
 	return nil, store.ErrNotFound
 }
 
-func (b *Bolt) AllNewerCommitted(
-	verByKey map[string][]uint64,
-) ([]*store.Item, error) {
+func (b *Bolt) AllNewerCommitted(verByKey map[string]uint64) ([]*store.Item, error) {
 	newer := []*store.Item{}
 
 	err := b.DB.View(func(tx *bolt.Tx) error {
@@ -193,8 +191,8 @@ func (b *Bolt) AllNewerCommitted(
 			}
 
 			newest := items[len(items)-1]
-			given, has := verByKey[string(k)]
-			if newest.Committed && (!has || newest.Version > given[0]) {
+			highestVer, has := verByKey[string(k)]
+			if newest.Committed && (!has || newest.Version > highestVer) {
 				newer = append(newer, newest)
 			}
 		}
@@ -208,9 +206,7 @@ func (b *Bolt) AllNewerCommitted(
 	return newer, nil
 }
 
-func (b *Bolt) AllNewerDirty(
-	verByKey map[string][]uint64,
-) ([]*store.Item, error) {
+func (b *Bolt) AllNewerDirty(verByKey map[string]uint64) ([]*store.Item, error) {
 	newer := []*store.Item{}
 
 	err := b.DB.View(func(tx *bolt.Tx) error {
@@ -225,8 +221,8 @@ func (b *Bolt) AllNewerDirty(
 			}
 
 			newest := items[len(items)-1]
-			given, has := verByKey[string(k)]
-			if !has || !newest.Committed && newest.Version > given[0] {
+			highestVer, has := verByKey[string(k)]
+			if !has || !newest.Committed && newest.Version > highestVer {
 				newer = append(newer, newest)
 			}
 		}

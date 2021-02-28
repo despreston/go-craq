@@ -27,7 +27,8 @@ type Storer interface {
 	// Write a new item to the store.
 	Write(key string, val []byte, version uint64) error
 
-	// Commit a version for the given key.
+	// Commit a version for the given key. All items with matching key and older
+	// than version are cleared.
 	Commit(key string, version uint64) error
 
 	// ReadVersion finds an item for the given key with the matching version. If
@@ -37,12 +38,12 @@ type Storer interface {
 	// AllNewerCommitted returns all committed items who's key is not in
 	// versionsByKey or who's version is higher than the versions in
 	// versionsByKey.
-	AllNewerCommitted(versionsByKey map[string][]uint64) ([]*Item, error)
+	AllNewerCommitted(versionsByKey map[string]uint64) ([]*Item, error)
 
 	// AllNewerDirty returns all uncommitted items who's key is not in
 	// versionsByKey or who's version is higher than the versions in
 	// versionsByKey.
-	AllNewerDirty(versionsByKey map[string][]uint64) ([]*Item, error)
+	AllNewerDirty(versionsByKey map[string]uint64) ([]*Item, error)
 
 	// AllDirty returns all uncommitted items.
 	AllDirty() ([]*Item, error)

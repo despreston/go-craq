@@ -118,7 +118,7 @@ func (s *KV) Commit(key string, version uint64) error {
 
 // AllNewerCommitted returns all committed items who's key is not in keyVersions
 // or who's version is higher than the versions in keyVersions.
-func (s *KV) AllNewerCommitted(keyVersions map[string][]uint64) ([]*store.Item, error) {
+func (s *KV) AllNewerCommitted(keyVersions map[string]uint64) ([]*store.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -128,8 +128,8 @@ func (s *KV) AllNewerCommitted(keyVersions map[string][]uint64) ([]*store.Item, 
 		// Highest local version
 		local := itemsForKey[len(itemsForKey)-1]
 
-		given, has := keyVersions[key]
-		if local.Committed && (!has || local.Version > given[0]) {
+		highestVer, has := keyVersions[key]
+		if local.Committed && (!has || local.Version > highestVer) {
 			newer = append(newer, local)
 		}
 	}
@@ -139,7 +139,7 @@ func (s *KV) AllNewerCommitted(keyVersions map[string][]uint64) ([]*store.Item, 
 
 // AllNewerDirty returns all uncommitted items who's key is not in keyVersions
 // or who's version is higher than the versions in keyVersions.
-func (s *KV) AllNewerDirty(keyVersions map[string][]uint64) ([]*store.Item, error) {
+func (s *KV) AllNewerDirty(keyVersions map[string]uint64) ([]*store.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -149,8 +149,8 @@ func (s *KV) AllNewerDirty(keyVersions map[string][]uint64) ([]*store.Item, erro
 		// Highest local version
 		local := items[len(items)-1]
 
-		given, has := keyVersions[key]
-		if !local.Committed && (!has || local.Version > given[0]) {
+		highestVer, has := keyVersions[key]
+		if !local.Committed && (!has || local.Version > highestVer) {
 			newer = append(newer, local)
 		}
 	}
