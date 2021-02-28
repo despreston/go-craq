@@ -57,9 +57,6 @@ type CoordinatorClient interface {
 // services use when creating new connections to nodes.
 type NodeClientFactory func() NodeClient
 
-// ----------------------------------------------------------------------------
-// Message argument and reply types
-
 // NodeMeta is for sending info to a node to let the node know where in the
 // chain it sits. The node will update itself when receiving this message.
 type NodeMeta struct {
@@ -81,42 +78,8 @@ type ValueVersion struct {
 	Version uint64
 }
 
-// CommitArgs should be sent to a node to tell it to mark an object as
-// committed. When an object is marked committed, it means it's been replicated
-// on every available node in the chain.
-type CommitArgs struct {
-	Key     string
-	Version uint64
-}
-
-// ClientWriteArgs are arguments a client should send to the Coordinator in
-// order to initiate a new write. The Coordinator will forward the
-// ClientWriteArgs to the head node.
-type ClientWriteArgs struct {
-	Key   string
-	Value []byte
-}
-
-// WriteArgs are arguments used when one node wants to tell it's successor to
-// write a new object to storage.
-type WriteArgs struct {
-	Key     string
-	Value   []byte
-	Version uint64
-}
-
-// VersionResponse is the tail node's response to a node asking what the latest
-// committed version of an item is.
-type VersionResponse struct {
-	Key     string
-	Version uint64
-}
-
 // Item is a single key/val pair.
 type Item struct {
 	Key   string
 	Value []byte
 }
-
-type EmptyArgs struct{}
-type EmptyReply struct{}

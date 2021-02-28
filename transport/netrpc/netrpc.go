@@ -22,3 +22,31 @@ func (c *Client) Connect(addr string) error {
 func (c *Client) Close() error {
 	return c.rpc.Close()
 }
+
+// ----------------------------------------------------------------------------
+// net/rpc argument and reply structs
+type (
+	EmptyArgs  struct{}
+	EmptyReply struct{}
+
+	CommitArgs struct {
+		Key     string
+		Version uint64
+	}
+
+	ClientWriteArgs struct {
+		Key   string
+		Value []byte
+	}
+
+	WriteArgs struct {
+		Key     string
+		Value   []byte
+		Version uint64
+	}
+
+	VersionResponse struct {
+		Key     string
+		Version uint64
+	}
+)

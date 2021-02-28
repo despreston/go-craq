@@ -13,8 +13,8 @@ type NodeClient struct {
 func (nc *NodeClient) Ping() error {
 	return nc.Client.rpc.Call(
 		"RPC.Ping",
-		&transport.EmptyArgs{},
-		&transport.EmptyReply{},
+		&EmptyArgs{},
+		&EmptyReply{},
 	)
 }
 
@@ -22,12 +22,12 @@ func (nc *NodeClient) Update(meta *transport.NodeMeta) error {
 	return nc.Client.rpc.Call(
 		"RPC.Update",
 		meta,
-		&transport.EmptyReply{},
+		&EmptyReply{},
 	)
 }
 
 func (nc *NodeClient) LatestVersion(key string) (string, uint64, error) {
-	reply := transport.VersionResponse{}
+	reply := VersionResponse{}
 	err := nc.Client.rpc.Call("RPC.Commit", key, &reply)
 	return reply.Key, reply.Version, err
 }
@@ -35,8 +35,8 @@ func (nc *NodeClient) LatestVersion(key string) (string, uint64, error) {
 func (nc *NodeClient) Commit(key string, version uint64) error {
 	return nc.Client.rpc.Call(
 		"RPC.Commit",
-		&transport.CommitArgs{Key: key, Version: version},
-		&transport.EmptyReply{},
+		&CommitArgs{Key: key, Version: version},
+		&EmptyReply{},
 	)
 }
 
@@ -49,16 +49,16 @@ func (nc *NodeClient) Read(key string) (string, []byte, error) {
 func (nc *NodeClient) Write(key string, value []byte, version uint64) error {
 	return nc.Client.rpc.Call(
 		"RPC.Write",
-		&transport.WriteArgs{Key: key, Value: value, Version: version},
-		&transport.EmptyReply{},
+		&WriteArgs{Key: key, Value: value, Version: version},
+		&EmptyReply{},
 	)
 }
 
 func (nc *NodeClient) ClientWrite(key string, value []byte) error {
 	return nc.Client.rpc.Call(
 		"RPC.ClientWrite",
-		&transport.ClientWriteArgs{Key: key, Value: value},
-		&transport.EmptyReply{},
+		&ClientWriteArgs{Key: key, Value: value},
+		&EmptyReply{},
 	)
 }
 
@@ -84,7 +84,7 @@ func (nc *NodeClient) FwdPropagate(
 
 func (nc *NodeClient) ReadAll() (*[]transport.Item, error) {
 	reply := &[]transport.Item{}
-	if err := nc.Client.rpc.Call("RPC.ReadAll", &transport.EmptyArgs{}, reply); err != nil {
+	if err := nc.Client.rpc.Call("RPC.ReadAll", &EmptyArgs{}, reply); err != nil {
 		return nil, err
 	}
 	return reply, nil
@@ -97,23 +97,23 @@ type NodeBinding struct {
 	Svc transport.NodeService
 }
 
-func (n *NodeBinding) Ping(_ *transport.EmptyArgs, _ *transport.EmptyReply) error {
+func (n *NodeBinding) Ping(_ *EmptyArgs, _ *EmptyReply) error {
 	return n.Svc.Ping()
 }
 
-func (n *NodeBinding) Update(args *transport.NodeMeta, _ *transport.EmptyReply) error {
+func (n *NodeBinding) Update(args *transport.NodeMeta, _ *EmptyReply) error {
 	return n.Svc.Update(args)
 }
 
-func (n *NodeBinding) ClientWrite(args *transport.ClientWriteArgs, _ *transport.EmptyReply) error {
+func (n *NodeBinding) ClientWrite(args *ClientWriteArgs, _ *EmptyReply) error {
 	return n.Svc.ClientWrite(args.Key, args.Value)
 }
 
-func (n *NodeBinding) Write(args *transport.WriteArgs, _ *transport.EmptyReply) error {
+func (n *NodeBinding) Write(args *WriteArgs, _ *EmptyReply) error {
 	return n.Svc.Write(args.Key, args.Value, args.Version)
 }
 
-func (n *NodeBinding) LatestVersion(key string, reply *transport.VersionResponse) error {
+func (n *NodeBinding) LatestVersion(key string, reply *VersionResponse) error {
 	key, version, err := n.Svc.LatestVersion(key)
 	if err != nil {
 		return err
@@ -141,7 +141,7 @@ func (n *NodeBinding) BackPropagate(
 	return err
 }
 
-func (n *NodeBinding) Commit(args *transport.CommitArgs, _ *transport.EmptyReply) error {
+func (n *NodeBinding) Commit(args *CommitArgs, _ *EmptyReply) error {
 	return n.Svc.Commit(args.Key, args.Version)
 }
 
@@ -155,7 +155,7 @@ func (n *NodeBinding) Read(key string, reply *transport.Item) error {
 	return nil
 }
 
-func (n *NodeBinding) ReadAll(_ *transport.EmptyArgs, reply *[]transport.Item) error {
+func (n *NodeBinding) ReadAll(_ *EmptyArgs, reply *[]transport.Item) error {
 	items, err := n.Svc.ReadAll()
 	if err != nil {
 		return err
