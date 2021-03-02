@@ -39,8 +39,10 @@ type NodeService interface {
 
 // Client facilitates communication.
 type Client interface {
+	// Close the connection and perform any pre or post shutdown steps.
 	Close() error
-	Connect(string) error
+	// Connect to the address
+	Connect(address string) error
 }
 
 type NodeClient interface {
