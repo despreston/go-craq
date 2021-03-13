@@ -500,8 +500,7 @@ func (n *Node) Read(key string) (string, []byte, error) {
 	case store.ErrNotFound:
 		return "", nil, errors.New("key doesn't exist")
 	case store.ErrDirtyItem:
-		v, err := n.getLatestVersion(key)
-
+		_, v, err := n.neighbors[transport.NeighborPosTail].rpc.LatestVersion(key)
 		if err != nil {
 			n.log.Printf(
 				"Failed to get latest version of %s from the tail. %v\n",
@@ -536,11 +535,6 @@ func (n *Node) ReadAll() (*[]transport.Item, error) {
 	}
 
 	return &items, nil
-}
-
-func (n *Node) getLatestVersion(key string) (uint64, error) {
-	_, v, err := n.neighbors[transport.NeighborPosTail].rpc.LatestVersion(key)
-	return v, err
 }
 
 // LatestVersion provides the latest committed version for a given key in the
