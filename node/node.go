@@ -116,7 +116,7 @@ func (n *Node) connectToCoordinator() error {
 
 	n.log.Printf("Connected to coordinator at %s\n", n.cdrAddress)
 
-	// Announce self to the Coordinatorr
+	// Announce self to the Coordinator
 	reply, err := n.cdr.AddNode(n.pubAddr)
 	if err != nil {
 		n.log.Println(err.Error())
